@@ -35,4 +35,3 @@ def test_render_text_summarizes_failures_and_warnings() -> None:
 
     assert "1 fallo(s) obligatorio(s)" in report
     assert "1 advertencia(s)" in report
-

@@ -40,9 +40,23 @@ El comando devuelve codigo `0` cuando las comprobaciones obligatorias pasan y co
 cuando existe un fallo obligatorio. Docker, DNS, TLS y el puerto local 8000 se reportan
 de forma informativa y no bloquean el trabajo local.
 
+## Validar un CSV de clientes
+
+El contrato completo esta en [`docs/data-contract.md`](docs/data-contract.md). El modo
+estricto rechaza el lote completo si encuentra al menos un error.
+
+```bash
+uv run fde-validate examples/customers-valid.csv --report validation-report.json
+uv run fde-validate examples/customers-invalid.csv --report validation-report.json
+```
+
+El primer comando devuelve codigo `0`. El segundo devuelve codigo `1` y escribe un reporte
+sin copiar emails, telefonos ni otros valores recibidos.
+
 ## Calidad y pruebas
 
 ```bash
+uv run ruff format --check .
 uv run ruff check .
 uv run pytest
 ```

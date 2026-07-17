@@ -1,0 +1,7 @@
+email,first_name,last_name,phone,source
+alice@example.com,Alice,Rivera,+14075550101,partner
+ALICE@example.com,Alicia,Rivera,+14075550102,event
+not-an-email,Robert,Smith,+14075550103,internal
+carla@example.com,,Diaz,4075550104,partner
+david@example.com,David,,,internal
+

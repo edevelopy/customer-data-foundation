@@ -1,0 +1,5 @@
+email,first_name,last_name,phone,source
+ana@example.com,Ana,Morales,+14075550101,partner
+luis@example.com,Luis,Rivera,,internal
+zoe@example.com,Zoe,Smith,+442071838750,event
+

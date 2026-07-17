@@ -12,6 +12,8 @@ dependencies = []
 
 [project.scripts]
 fde-diagnose = "fde_foundation.diagnostic:main"
+fde-validate = "fde_foundation.validation:main"
+
 
 [dependency-groups]
 dev = [
@@ -32,4 +34,3 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
-
