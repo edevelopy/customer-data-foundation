@@ -16,7 +16,7 @@ El problema, el usuario y la metrica inicial estan documentados en
 ## Instalacion desde cero
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/edevelopy/customer-data-foundation.git
 cd customer-data-foundation
 uv sync --locked
 cp .env.example .env
@@ -74,5 +74,3 @@ La aplicacion de importacion y PostgreSQL se incorporaran en fases posteriores.
 - Todavia no se procesan archivos CSV.
 - Todavia no existe una base de datos.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
-- La URL real del repositorio se agregara al publicarlo en GitHub.
-
