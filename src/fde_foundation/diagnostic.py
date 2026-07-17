@@ -8,6 +8,7 @@ import os
 import platform
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -109,6 +110,30 @@ def check_dns() -> Check:
     return Check("DNS", "PASS", f"example.com resolvio {len(addresses)} direccion(es)", False)
 
 
+def check_tls() -> Check:
+    """Negocia TLS sin enviar datos de aplicacion; no bloquea el trabajo sin conexion."""
+    try:
+        context = ssl.create_default_context()
+        with (
+            socket.create_connection(("example.com", 443), timeout=3) as connection,
+            context.wrap_socket(connection, server_hostname="example.com") as secure,
+        ):
+            version = secure.version() or "version desconocida"
+    except (OSError, ssl.SSLError) as error:
+        return Check("TLS", "WARN", type(error).__name__, required=False)
+    return Check("TLS", "PASS", f"negociacion segura: {version}", required=False)
+
+
+def check_local_port(port: int = 8000) -> Check:
+    """Comprueba si un puerto de desarrollo puede reservarse sin dejarlo abierto."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.bind(("127.0.0.1", port))
+    except OSError:
+        return Check(f"Puerto local {port}", "WARN", "esta ocupado", required=False)
+    return Check(f"Puerto local {port}", "PASS", "disponible", required=False)
+
+
 def run_checks(project_root: Path) -> list[Check]:
     """Ejecuta todas las comprobaciones en orden estable."""
     return [
@@ -119,6 +144,8 @@ def run_checks(project_root: Path) -> list[Check]:
         check_env_is_ignored(project_root),
         check_temp_write(),
         check_dns(),
+        check_tls(),
+        check_local_port(),
     ]
 
 
@@ -157,4 +184,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

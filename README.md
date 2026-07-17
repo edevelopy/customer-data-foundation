@@ -37,8 +37,8 @@ uv run fde-diagnose --json
 ```
 
 El comando devuelve codigo `0` cuando las comprobaciones obligatorias pasan y codigo `1`
-cuando existe un fallo obligatorio. Docker y la resolucion DNS se reportan de forma
-informativa y no bloquean el trabajo local.
+cuando existe un fallo obligatorio. Docker, DNS, TLS y el puerto local 8000 se reportan
+de forma informativa y no bloquean el trabajo local.
 
 ## Calidad y pruebas
 
@@ -68,6 +68,13 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 El ejecutable `fde-diagnose` llama comprobaciones independientes y produce una salida
 humana o JSON. No lee ni muestra el contenido de `.env`; solo verifica que Git lo ignore.
 La aplicacion de importacion y PostgreSQL se incorporaran en fases posteriores.
+
+## Modelo de trabajo AI-native
+
+La persona responsable actua como FDE: define el problema, toma decisiones de alcance,
+aprueba cambios externos y evalua evidencia. El agente ejecuta los comandos y propone o
+implementa cambios. Ningun resultado se acepta sin pruebas observadas, riesgos visibles y
+un artefacto que otra persona pueda inspeccionar.
 
 ## Limitaciones conocidas
 
