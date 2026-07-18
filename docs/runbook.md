@@ -15,6 +15,38 @@ reporte JSON asociado al `operation_id`.
 
 ## Matriz de respuesta
 
+### API `401` o `403`
+
+- `401`: credencial ausente, vencida, mal firmada o emitida para otro servicio.
+- `403`: identidad valida sin el rol requerido.
+- Accion: renovar la credencial o corregir la asignacion en el proveedor de identidad. No
+  copiar el JWT a tickets ni activar logs de headers.
+
+### API `409 idempotency_key_reused`
+
+- Causa: el mismo operador reutilizo una clave para contenido diferente.
+- Accion: el sistema llamador debe crear una clave nueva para una operacion nueva.
+- No borrar `api_operations`; el rechazo protege contra resultados ambiguos.
+
+### API `413`
+
+- El archivo supera 10 MiB. Dividirlo en lotes autorizados de hasta 10,000 filas.
+- No aumentar el limite durante un incidente sin revisar memoria, latencia y controles del
+  gateway.
+
+### API `503` o readiness no saludable
+
+- Detener nuevos envios y revisar PostgreSQL, revision Alembic y configuracion del proceso.
+- Liveness saludable con readiness fallido significa que el proceso vive pero no puede servir
+  importaciones de manera segura.
+- Recuperar la dependencia y repetir con la misma clave y el mismo archivo.
+
+### Operacion permanece `processing`
+
+- Conservar `operation_id`, hora y salud de las dependencias; no reenviar con otra clave.
+- Este incremento no reconcilia automaticamente operaciones interrumpidas. Escalar para
+  inspeccion operacional sin consultar PII ni editar tablas manualmente.
+
 ### `validation_failed`
 
 - Causa probable: encabezado, campo requerido, formato, duplicado o limite del archivo.
@@ -82,9 +114,10 @@ reporte JSON asociado al `operation_id`.
 5. Intentar una conexion a un puerto cerrado y comprobar `database_error` sin secretos.
 6. En una base desechable, ejecutar downgrade, observar `migration_required`, aplicar
    upgrade y repetir la importacion con exito.
+7. En la API, repetir la misma clave y archivo; confirmar el mismo `operation_id`.
+8. Reutilizar esa clave con otro archivo; confirmar `409` sin valores del CSV.
 
 ## Cierre del incidente
 
 Registrar causa, impacto, deteccion, recuperacion, evidencia y accion preventiva. Cerrar
 solo cuando la importacion o reimportacion sea idempotente y las pruebas vuelvan a pasar.
-

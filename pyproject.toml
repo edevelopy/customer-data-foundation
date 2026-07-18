@@ -10,16 +10,23 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18,<2",
+    "fastapi>=0.115,<1",
+    "pyjwt>=2.10,<3",
     "psycopg[binary]>=3.2,<4",
+    "python-multipart>=0.0.20,<1",
+    "uvicorn>=0.34,<1",
 ]
 
 [project.scripts]
 fde-diagnose = "fde_foundation.diagnostic:main"
+fde-api = "fde_foundation.api:run"
+fde-dev-token = "fde_foundation.dev_token:main"
 fde-import = "fde_foundation.importer:main"
 fde-validate = "fde_foundation.validation:main"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.7,<3",
     "pytest>=8.0",
     "ruff>=0.8",
 ]

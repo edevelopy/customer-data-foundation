@@ -13,7 +13,12 @@ from typing import Final
 
 import psycopg
 
-from fde_foundation.database import SchemaNotCurrentError, require_current_schema
+from fde_foundation.database import (
+    CONNECT_TIMEOUT_SECONDS,
+    POSTGRES_OPERATION_LIMITS,
+    SchemaNotCurrentError,
+    require_current_schema,
+)
 from fde_foundation.observability import build_import_event, emit_json_event
 from fde_foundation.validation import (
     ValidatedCustomer,
@@ -117,7 +122,10 @@ def import_validated_records(
     total_rows = len(records)
     try:
         with psycopg.connect(
-            database_url, connect_timeout=5, application_name="fde-import"
+            database_url,
+            connect_timeout=CONNECT_TIMEOUT_SECONDS,
+            options=POSTGRES_OPERATION_LIMITS,
+            application_name="fde-import",
         ) as connection:
             try:
                 with connection.transaction():

@@ -1,7 +1,8 @@
 # FDE Customer Data Foundation
 
-Repositorio plantilla de la **Fase 0** de la ruta Forward Deployed Engineer. Prepara un
-entorno Python reproducible para el futuro importador confiable de datos de clientes.
+Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
+la Fase 1 entrego el importador transaccional y la Fase 2 lo esta exponiendo como una API
+autenticada e idempotente.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -89,6 +90,26 @@ Para detener PostgreSQL sin borrar los datos:
 docker compose down
 ```
 
+## Ejecutar la API local
+
+El contrato completo esta en [`docs/api-contract.md`](docs/api-contract.md). Despues de
+cargar `.env`, iniciar PostgreSQL y aplicar migraciones:
+
+```bash
+uv run fde-api
+```
+
+La documentacion interactiva local queda en `http://127.0.0.1:8000/docs`. Para una demo se
+puede generar un JWT de 15 minutos; el comando se bloquea fuera de `APP_ENV=development`:
+
+```bash
+uv run fde-dev-token --subject operator-demo --role operator
+```
+
+No guardes ni copies el token a logs, documentos o Git. Este ayudante no es un login ni debe
+usarse en un entorno compartido. El guion reproducible esta en
+[`docs/api-demo-script.md`](docs/api-demo-script.md).
+
 ## Calidad y pruebas
 
 ```bash
@@ -113,6 +134,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 - [`docs/failure-drill-evidence.md`](docs/failure-drill-evidence.md): simulacros observados.
 - [`docs/demo-script.md`](docs/demo-script.md): demo reproducible de cinco minutos.
 - [`docs/phase-1-final-evaluation.md`](docs/phase-1-final-evaluation.md): rubrica y limites.
+- [`docs/phase-2-api-evidence.md`](docs/phase-2-api-evidence.md): evidencia del primer
+  incremento HTTP; no es aun la evaluacion final de la Fase 2.
 
 ## Estructura
 
@@ -135,9 +158,9 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 
 El ejecutable `fde-diagnose` llama comprobaciones independientes y produce una salida
 humana o JSON. No lee ni muestra el contenido de `.env`; solo verifica que Git lo ignore.
-La validacion ocurre antes de conectar con PostgreSQL. Una migracion explicita prepara el
-esquema; la reserva del hash, la deteccion de conflictos y las inserciones comparten una
-unica transaccion.
+La validacion ocurre antes de escribir clientes en PostgreSQL. Una migracion explicita prepara
+el esquema; la reserva del hash, la deteccion de conflictos y las inserciones usan limites
+transaccionales explicitos. La API conserva solo HMAC del actor y de la clave de idempotencia.
 
 ## Modelo de trabajo AI-native
 
@@ -151,3 +174,5 @@ un artefacto que otra persona pueda inspeccionar.
 - La primera migracion adopta tablas identicas creadas durante el piloto; cambios futuros deben validarlas explicitamente.
 - El email sigue siendo una clave natural provisional para el piloto.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
+- La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
+  rate limiting y recuperacion de operaciones interrumpidas.

@@ -2,7 +2,9 @@
 
 ## Evento de importacion
 
-Cada ejecucion de `fde-import` emite exactamente un objeto JSON por `stdout`.
+Cada ejecucion de `fde-import` y cada solicitud procesada por la API emite exactamente un
+objeto JSON por `stdout`. Un reintento HTTP reconocido usa `status=idempotent_replay` en el
+evento, sin cambiar el estado persistido de la operacion original.
 
 | Campo | Tipo | Uso |
 |---|---|---|
@@ -39,4 +41,3 @@ detallado conserva fila, campo, codigo y correccion, pero tampoco copia valores 
 - Calidad de entrada: frecuencia de `validation_failed` y sus `error_codes`.
 - Conflictos: frecuencia de `customer_conflict`.
 - Volumen: suma de `total_rows`, `inserted_rows` y `existing_rows`.
-
