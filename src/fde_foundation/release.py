@@ -24,6 +24,7 @@ REQUIRED_SECRET_FILES: Final = (
     "database_url",
     "jwt_secret",
     "identifier_hash_key",
+    "metrics_token",
     "partner_webhook_secret",
     "operator_token",
 )

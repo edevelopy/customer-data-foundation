@@ -46,7 +46,7 @@ def test_api_settings_and_preflight_do_not_expose_file_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     api_environment(monkeypatch)
-    for name in ("JWT_SECRET", "IDENTIFIER_HASH_KEY"):
+    for name in ("JWT_SECRET", "IDENTIFIER_HASH_KEY", "METRICS_TOKEN"):
         secret_file = tmp_path / name.casefold()
         secret_file.write_text(SECRET, encoding="utf-8")
         monkeypatch.delenv(name, raising=False)
@@ -57,6 +57,7 @@ def test_api_settings_and_preflight_do_not_expose_file_secrets(
 
     assert settings.jwt_secret == SECRET
     assert settings.identifier_hash_key == SECRET
+    assert settings.metrics_token == SECRET
     assert result == {"status": "ready", "targets": ["api"]}
     assert SECRET not in str(result)
 
@@ -65,6 +66,7 @@ def test_preflight_returns_only_safe_failure(monkeypatch: pytest.MonkeyPatch) ->
     api_environment(monkeypatch)
     monkeypatch.setenv("JWT_SECRET", "too-short")
     monkeypatch.setenv("IDENTIFIER_HASH_KEY", SECRET)
+    monkeypatch.setenv("METRICS_TOKEN", SECRET)
 
     result = validate_targets(["api"])
 

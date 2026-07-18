@@ -52,6 +52,7 @@ services:
       DATABASE_URL: ${CONTAINER_DATABASE_URL:?define container database URL}
       JWT_SECRET: ${JWT_SECRET:?define JWT signing secret}
       IDENTIFIER_HASH_KEY: ${IDENTIFIER_HASH_KEY:?define identifier hash key}
+      METRICS_TOKEN: ${METRICS_TOKEN:?define metrics token}
       JWT_ISSUER: ${JWT_ISSUER:?define JWT issuer}
       JWT_AUDIENCE: ${JWT_AUDIENCE:?define JWT audience}
       API_HOST: 0.0.0.0

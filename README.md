@@ -167,7 +167,7 @@ health y smoke antes de actualizar estado:
 
 ```bash
 uv run fde-release deploy \
-  --version v0.3.0 \
+  --version v0.3.1 \
   --image-ref ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest> \
   --secrets-dir /ruta/absoluta/secrets \
   --state-file /ruta/absoluta/state/release.json
@@ -176,6 +176,23 @@ uv run fde-release deploy \
 El contrato y la politica de rollback estan en
 [`docs/release-contract.md`](docs/release-contract.md). `fde-release-fixture` existe solo para
 simulacros con valores descartables; nunca genera credenciales de un cliente.
+
+## Observar y recuperar el ambiente
+
+La API publica metricas Prometheus autenticadas en `/metrics`; `fde-ops-check` evalua las mismas
+señales y devuelve codigo no-cero ante leases vencidos, dead letter o atraso. Los contratos estan en
+[`docs/operations-contract.md`](docs/operations-contract.md) y
+[`deploy/prometheus-alerts.yml`](deploy/prometheus-alerts.yml).
+
+Los backups se crean y prueban sin restaurar sobre la fuente:
+
+```bash
+uv run fde-backup create --project-name cdf-release --archive /ruta/privada/customer-data.dump
+uv run fde-backup verify --project-name cdf-release --archive /ruta/privada/customer-data.dump
+```
+
+El dump contiene PII y debe cifrarse y almacenarse fuera de Git. Consulta el
+[`runbook de backup y restauracion`](docs/backup-restore-runbook.md).
 
 ## Calidad y pruebas
 
@@ -230,6 +247,8 @@ uv run pytest tests/test_openapi_contract.py
   archivos montados y limites de rotacion.
 - [`docs/phase-3-release-evidence.md`](docs/phase-3-release-evidence.md): ambiente por digest,
   promocion SemVer, smoke y estado de deploy/rollback.
+- [`docs/phase-3-operations-evidence.md`](docs/phase-3-operations-evidence.md): metricas, alerta
+  provocada y restauracion real aislada.
 
 ## Estructura
 

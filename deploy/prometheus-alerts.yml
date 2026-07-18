@@ -1,0 +1,24 @@
+groups:
+  - name: customer-data-foundation
+    rules:
+      - alert: FDEExpiredImportLease
+        expr: fde_imports_expired_processing > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: An import requires safe recovery
+      - alert: FDEPartnerDeadLetter
+        expr: fde_outbox_dead_letter > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: A partner event requires operator intervention
+      - alert: FDEPartnerDeliveryDelayed
+        expr: fde_outbox_oldest_pending_seconds >= 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Partner delivery has exceeded the five minute objective

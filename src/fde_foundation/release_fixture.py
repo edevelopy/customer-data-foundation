@@ -17,6 +17,7 @@ SECRET_FILES = (
     "database_url",
     "jwt_secret",
     "identifier_hash_key",
+    "metrics_token",
     "partner_webhook_secret",
     "operator_token",
 )
@@ -37,6 +38,7 @@ def prepare_fixture(destination: Path, *, issuer: str, audience: str) -> list[st
     jwt_secret = secrets.token_urlsafe(48)
     identifier_hash_key = secrets.token_urlsafe(48)
     partner_webhook_secret = secrets.token_urlsafe(48)
+    metrics_token = secrets.token_urlsafe(48)
     database_url = (
         f"postgresql://fde_release:{quote(postgres_password, safe='')}@database:5432/fde_release"
     )
@@ -58,6 +60,7 @@ def prepare_fixture(destination: Path, *, issuer: str, audience: str) -> list[st
         "database_url": database_url,
         "jwt_secret": jwt_secret,
         "identifier_hash_key": identifier_hash_key,
+        "metrics_token": metrics_token,
         "partner_webhook_secret": partner_webhook_secret,
         "operator_token": operator_token,
     }

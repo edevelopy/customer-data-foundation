@@ -34,6 +34,7 @@ services:
       PARTNER_DATABASE_URL_FILE: /run/secrets/database_url
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       IDENTIFIER_HASH_KEY_FILE: /run/secrets/identifier_hash_key
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
       PARTNER_WEBHOOK_SECRET_FILE: /run/secrets/partner_webhook_secret
       JWT_ISSUER: ${JWT_ISSUER:-fde-release}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-fde-release-clients}
@@ -53,6 +54,7 @@ services:
       - database_url
       - jwt_secret
       - identifier_hash_key
+      - metrics_token
       - partner_webhook_secret
     read_only: true
     tmpfs:
@@ -113,6 +115,7 @@ services:
     stop_grace_period: 15s
     networks:
       - backend
+      - edge
 
   partner_api:
     image: ${IMAGE_REF:?set immutable IMAGE_REF with sha256 digest}
@@ -229,6 +232,8 @@ secrets:
     file: ${DEPLOY_SECRETS_DIR:?set absolute DEPLOY_SECRETS_DIR}/jwt_secret
   identifier_hash_key:
     file: ${DEPLOY_SECRETS_DIR:?set absolute DEPLOY_SECRETS_DIR}/identifier_hash_key
+  metrics_token:
+    file: ${DEPLOY_SECRETS_DIR:?set absolute DEPLOY_SECRETS_DIR}/metrics_token
   partner_webhook_secret:
     file: ${DEPLOY_SECRETS_DIR:?set absolute DEPLOY_SECRETS_DIR}/partner_webhook_secret
   operator_token:
@@ -240,3 +245,4 @@ volumes:
 networks:
   backend:
     internal: true
+  edge:

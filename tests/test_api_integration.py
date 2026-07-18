@@ -20,6 +20,7 @@ from fde_foundation.validation import MAX_FILE_BYTES
 DATABASE_URL = "postgresql://fde_test:test-only-password@localhost:55434/fde_test"
 JWT_SECRET = "test-jwt-signing-key-with-more-than-thirty-two-characters"
 IDENTIFIER_HASH_KEY = "test-identifier-hash-key-with-more-than-thirty-two-characters"
+METRICS_TOKEN = "test-metrics-token-with-more-than-thirty-two-characters"
 JWT_ISSUER = "fde-test"
 JWT_AUDIENCE = "fde-import-api-test"
 VALID_CSV = (
@@ -40,6 +41,7 @@ def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
     monkeypatch.setenv("IDENTIFIER_HASH_KEY", IDENTIFIER_HASH_KEY)
+    monkeypatch.setenv("METRICS_TOKEN", METRICS_TOKEN)
     monkeypatch.setenv("JWT_ISSUER", JWT_ISSUER)
     monkeypatch.setenv("JWT_AUDIENCE", JWT_AUDIENCE)
     with TestClient(app) as client:
@@ -102,6 +104,19 @@ def expire_lease(database_url: str, operation_id) -> None:
 def test_health_endpoints_distinguish_live_and_ready(api_client: TestClient) -> None:
     assert api_client.get("/health/live").json() == {"status": "ok"}
     assert api_client.get("/health/ready").json() == {"status": "ready"}
+
+
+@pytest.mark.integration
+def test_metrics_require_dedicated_token_and_expose_no_customer_data(
+    api_client: TestClient,
+) -> None:
+    assert api_client.get("/metrics").status_code == 401
+    response = api_client.get("/metrics", headers={"Authorization": f"Bearer {METRICS_TOKEN}"})
+
+    assert response.status_code == 200
+    assert "fde_imports_total" in response.text
+    assert "fde_outbox_dead_letter" in response.text
+    assert "example.com" not in response.text
 
 
 @pytest.mark.integration

@@ -12,6 +12,7 @@ administrado usa archivos montados por su gestor de secretos.
 |---|---|---|
 | Firma JWT | `JWT_SECRET` | `JWT_SECRET_FILE` |
 | HMAC de identificadores | `IDENTIFIER_HASH_KEY` | `IDENTIFIER_HASH_KEY_FILE` |
+| Acceso a metricas | `METRICS_TOKEN` | `METRICS_TOKEN_FILE` |
 | Webhook socio | `PARTNER_WEBHOOK_SECRET` | `PARTNER_WEBHOOK_SECRET_FILE` |
 
 Para cada secreto se configura exactamente una fuente. Si existen la variable directa y `_FILE`,

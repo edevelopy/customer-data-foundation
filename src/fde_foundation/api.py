@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import os
+import secrets
 import tempfile
 import time
 import uuid
@@ -14,9 +15,10 @@ from typing import Annotated
 
 import psycopg
 import uvicorn
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Security, UploadFile, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -38,10 +40,12 @@ from fde_foundation.database import (
 from fde_foundation.importer import import_csv
 from fde_foundation.integration_store import OutboxEvent, get_event_for_operation
 from fde_foundation.observability import build_import_event, emit_json_event
+from fde_foundation.operations import METRIC_CONTENT_TYPE, collect_snapshot, render_prometheus
 from fde_foundation.settings import ConfigurationError, Settings
 from fde_foundation.validation import MAX_FILE_BYTES
 
 UPLOAD_CHUNK_BYTES = 64 * 1024
+metrics_bearer = HTTPBearer(auto_error=False, scheme_name="MetricsToken")
 
 
 class IssueResponse(BaseModel):
@@ -187,9 +191,30 @@ def emit_operation(operation: StoredOperation, *, status_override: str | None = 
 
 app = FastAPI(
     title="Customer Import API",
-    version="0.2.0",
+    version="0.3.1",
     description="Strict imports with durable asynchronous partner notifications.",
 )
+
+
+def require_metrics_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(metrics_bearer)],
+    settings: Annotated[Settings, Depends(api_settings)],
+) -> Settings:
+    if (
+        credentials is None
+        or credentials.scheme.casefold() != "bearer"
+        or not secrets.compare_digest(credentials.credentials, settings.metrics_token)
+    ):
+        raise unauthorized_metrics()
+    return settings
+
+
+def unauthorized_metrics() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"code": "invalid_metrics_token", "message": "Authentication is required."},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -220,6 +245,21 @@ def ready(settings: Annotated[Settings, Depends(api_settings)]) -> dict[str, str
             "Service is not ready.",
         ) from error
     return {"status": "ready"}
+
+
+@app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+def metrics(
+    settings: Annotated[Settings, Depends(require_metrics_token)],
+) -> PlainTextResponse:
+    try:
+        snapshot = collect_snapshot(settings.database_url)
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "metrics_unavailable",
+            "Operational metrics are unavailable.",
+        ) from error
+    return PlainTextResponse(render_prometheus(snapshot), media_type=METRIC_CONTENT_TYPE)
 
 
 @app.post(

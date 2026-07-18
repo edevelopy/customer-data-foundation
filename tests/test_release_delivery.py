@@ -241,10 +241,12 @@ def test_release_compose_uses_immutable_image_and_file_secrets() -> None:
         "${IMAGE_REF:?set immutable IMAGE_REF with sha256 digest}",
         "DATABASE_URL_FILE: /run/secrets/database_url",
         "JWT_SECRET_FILE: /run/secrets/jwt_secret",
+        "METRICS_TOKEN_FILE: /run/secrets/metrics_token",
         "PARTNER_WEBHOOK_SECRET_FILE: /run/secrets/partner_webhook_secret",
         'command: ["fde-config-check", "api", "worker", "partner"]',
         "condition: service_completed_successfully",
         "internal: true",
+        "edge:",
         "release_database:",
         "integration_smoke.py",
     ):

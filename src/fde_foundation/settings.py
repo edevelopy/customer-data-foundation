@@ -50,6 +50,7 @@ class Settings:
     jwt_audience: str
     api_host: str
     api_port: int
+    metrics_token: str = ""
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -57,6 +58,7 @@ class Settings:
         database_url = read_secret("DATABASE_URL", minimum_length=1)
         jwt_secret = read_secret("JWT_SECRET")
         identifier_hash_key = read_secret("IDENTIFIER_HASH_KEY")
+        metrics_token = read_secret("METRICS_TOKEN")
         jwt_issuer = os.environ.get("JWT_ISSUER", "")
         jwt_audience = os.environ.get("JWT_AUDIENCE", "")
         api_host = os.environ.get("API_HOST", "127.0.0.1")
@@ -78,4 +80,5 @@ class Settings:
             jwt_audience=jwt_audience,
             api_host=api_host,
             api_port=api_port,
+            metrics_token=metrics_token,
         )
