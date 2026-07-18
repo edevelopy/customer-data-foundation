@@ -184,7 +184,12 @@ async def receive_import_event(
     signature_header: Annotated[str | None, Header(alias="X-FDE-Signature")] = None,
     idempotency_header: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ReceiptResponse | JSONResponse:
-    if not all((event_id_header, timestamp_header, signature_header, idempotency_header)):
+    if (
+        event_id_header is None
+        or timestamp_header is None
+        or signature_header is None
+        or idempotency_header is None
+    ):
         raise safe_error(400, "missing_webhook_headers", "Required webhook headers are missing.")
     body = await request.body()
     if len(body) > MAX_EVENT_BYTES:

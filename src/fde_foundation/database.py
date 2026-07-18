@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
+import psycopg
 from alembic import command
 from alembic.config import Config
 
@@ -36,7 +37,7 @@ def downgrade_database(database_url: str) -> None:
     command.downgrade(migration_config(database_url), "base")
 
 
-def require_current_schema(connection: object) -> None:
+def require_current_schema(connection: psycopg.Connection[Any]) -> None:
     """Comprueba la revision sin modificar la base de datos."""
     version_table = connection.execute("SELECT to_regclass('public.alembic_version');").fetchone()
     if not version_table or version_table[0] is None:

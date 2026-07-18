@@ -169,11 +169,13 @@ set +a
 docker compose --profile test up -d --wait database_test
 uv run ruff format --check .
 uv run ruff check .
-uv run pytest
+uv run mypy src tests scripts
+uv run pytest --cov=fde_foundation --cov-branch --cov-report=term-missing
 ```
 
-Usa la URL de pruebas, nunca `DATABASE_URL`, al ejecutar Pytest. `database_test` utiliza
-almacenamiento efimero y no comparte volumen con la base de desarrollo.
+Usa la URL de pruebas, nunca `DATABASE_URL`, al ejecutar Pytest. La cobertura total debe permanecer
+en 75% o mas. `database_test` utiliza almacenamiento efimero y no comparte volumen con la base de
+desarrollo.
 
 GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 
@@ -201,6 +203,10 @@ uv run pytest tests/test_openapi_contract.py
   outbox, webhook firmado, reintentos, dead letter y fallo parcial recuperado.
 - [`docs/phase-2-final-evaluation.md`](docs/phase-2-final-evaluation.md): rubrica, examen desde clon
   limpio, limites y decision formal de aprobacion de la Fase 2.
+- [`docs/phase-3-equivalence-audit.md`](docs/phase-3-equivalence-audit.md): cobertura reutilizable y
+  brechas reales de entrega y automatizacion.
+- [`docs/phase-3-quality-evidence.md`](docs/phase-3-quality-evidence.md): type checking, cobertura
+  bloqueante y artifacts de pruebas.
 
 ## Estructura
 

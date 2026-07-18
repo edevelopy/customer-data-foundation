@@ -7,6 +7,7 @@ import hmac
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -69,7 +70,7 @@ def connect(database_url: str) -> psycopg.Connection:
     )
 
 
-def operation_from_row(row: tuple[object, ...]) -> StoredOperation:
+def operation_from_row(row: tuple[Any, ...]) -> StoredOperation:
     return StoredOperation(
         operation_id=row[0],
         actor_hash=row[1],

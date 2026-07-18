@@ -5,6 +5,8 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from email.message import Message
+from typing import cast
 from urllib.error import HTTPError
 
 import psycopg
@@ -325,8 +327,9 @@ def test_worker_signs_exact_body_and_classifies_timeout(
 
     assert delivered.delivered is True
     assert captured["body"] == canonical_body(event.payload)
-    assert captured["headers"]["idempotency-key"] == str(event.event_id)
-    assert captured["headers"]["x-fde-signature"].startswith("v1=")
+    captured_headers = cast(dict[str, str], captured["headers"])
+    assert captured_headers["idempotency-key"] == str(event.event_id)
+    assert captured_headers["x-fde-signature"].startswith("v1=")
     assert captured["timeout"] == 0.2
     assert event.operation_id == operation_id
 
@@ -350,7 +353,7 @@ def test_worker_does_not_retry_permanent_partner_rejection(
 
     def unauthorized(request, timeout):
         assert timeout == 0.2
-        raise HTTPError(request.full_url, 401, "unauthorized", {}, None)
+        raise HTTPError(request.full_url, 401, "unauthorized", Message(), None)
 
     monkeypatch.setattr(worker_module, "urlopen", unauthorized)
     result = deliver_event(event, worker_settings(database_url))

@@ -158,10 +158,12 @@ def test_exact_idempotent_replay_returns_same_operation(api_client: TestClient) 
 
     database_url = os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
     with psycopg.connect(database_url) as connection:
-        actor_hash, key_hash = connection.execute(
+        stored_hashes = connection.execute(
             "SELECT actor_hash, idempotency_key_hash FROM api_operations;"
         ).fetchone()
         event_count = connection.execute("SELECT count(*) FROM integration_outbox;").fetchone()
+    assert stored_hashes is not None
+    actor_hash, key_hash = stored_hashes
 
     assert actor_hash == protected_hash(IDENTIFIER_HASH_KEY, "actor", "operator-1")
     assert key_hash == protected_hash(IDENTIFIER_HASH_KEY, "idempotency", "import-key-0002")

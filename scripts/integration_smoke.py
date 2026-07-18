@@ -71,7 +71,8 @@ def main() -> int:
 
     if final is None or final.get("status") != "delivered":
         raise RuntimeError("partner event was not delivered")
-    if int(final.get("attempt_count", 0)) < 2:
+    attempt_count = final.get("attempt_count")
+    if not isinstance(attempt_count, int) or attempt_count < 2:
         raise RuntimeError("transient failure was not retried")
     serialized = json.dumps(final)
     if "integration.smoke@example.com" in serialized or "+14075550197" in serialized:
@@ -80,7 +81,7 @@ def main() -> int:
     print(
         json.dumps(
             {
-                "attempt_count": final.get("attempt_count"),
+                "attempt_count": attempt_count,
                 "event_id": final.get("event_id"),
                 "last_failure_code": final.get("last_failure_code"),
                 "operation_id": operation_id,

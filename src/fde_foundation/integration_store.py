@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Final
+from typing import Any, Final, cast
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -47,7 +47,7 @@ def connect(database_url: str, *, application_name: str = "fde-integration") -> 
     )
 
 
-def event_from_row(row: tuple[object, ...]) -> OutboxEvent:
+def event_from_row(row: tuple[Any, ...]) -> OutboxEvent:
     return OutboxEvent(
         event_id=row[0],
         operation_id=row[1],
@@ -97,7 +97,7 @@ def enqueue_completed_import(
     ).fetchone()
     if row is None:
         raise psycopg.DatabaseError
-    return row[0]
+    return cast(uuid.UUID, row[0])
 
 
 def claim_next_event(database_url: str, *, lease_seconds: int) -> OutboxEvent | None:
@@ -221,7 +221,7 @@ def mark_failed_attempt(
         ).fetchone()
     if row is None:
         return "stale_attempt"
-    return row[0]
+    return cast(str, row[0])
 
 
 def get_event_for_operation(database_url: str, operation_id: uuid.UUID) -> OutboxEvent | None:

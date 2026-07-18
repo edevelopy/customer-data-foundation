@@ -8,9 +8,10 @@ import json
 import os
 import re
 import tempfile
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 EXPECTED_FIELDS: Final = ("email", "first_name", "last_name", "phone", "source")
 MAX_FILE_BYTES: Final = 10 * 1024 * 1024
@@ -158,7 +159,7 @@ def validate_source(value: str, row_number: int) -> tuple[str, list[ValidationIs
     return normalized, []
 
 
-def validate_headers(fieldnames: list[str] | None) -> list[ValidationIssue]:
+def validate_headers(fieldnames: Sequence[str] | None) -> list[ValidationIssue]:
     if fieldnames is None:
         return [
             issue(
@@ -381,7 +382,7 @@ def main() -> int:
     result = validate_csv(args.csv_file)
     if args.report:
         write_report(result, args.report)
-    summary = result.to_report()["summary"]
+    summary = cast(dict[str, int], result.to_report()["summary"])
     print(
         f"accepted={str(result.accepted).lower()} "
         f"rows={summary['total_rows']} errors={summary['error_count']}"
