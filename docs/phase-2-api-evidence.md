@@ -65,6 +65,13 @@ Los contenedores y el volumen temporales se eliminaron al terminar.
 GitHub Actions tambien aprobo migracion, formato, lint y 33 pruebas en PostgreSQL efimero:
 <https://github.com/edevelopy/customer-data-foundation/actions/runs/29631605146>.
 
-El Incremento 2 ya supero localmente las simulaciones automatizadas y la prueba HTTP real.
-Faltan verificacion desde clon limpio y CI remoto antes de cerrarlo. Esto sigue siendo
-evidencia incremental, no la evaluacion final de Fase 2.
+Para el Incremento 2, otro clon nuevo instalo dependencias bloqueadas, levanto PostgreSQL
+aislado en 55437/55438, aplico `0003_recovery_leases`, aprobo formato y lint, y ejecuto las 37
+pruebas. Sus contenedores y volumen fueron eliminados; la carpeta temporal se movio a la
+Papelera.
+
+GitHub Actions aprobo migracion, formato, lint y 37 pruebas en PostgreSQL efimero:
+<https://github.com/edevelopy/customer-data-foundation/actions/runs/29632128267>.
+
+El Incremento 2 queda cerrado con verificacion local, HTTP real, clon limpio y CI remoto. Esto
+sigue siendo evidencia incremental, no la evaluacion final de Fase 2.
