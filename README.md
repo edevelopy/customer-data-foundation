@@ -53,12 +53,43 @@ uv run fde-validate examples/customers-invalid.csv --report validation-report.js
 El primer comando devuelve codigo `0`. El segundo devuelve codigo `1` y escribe un reporte
 sin copiar emails, telefonos ni otros valores recibidos.
 
+## Importar en PostgreSQL
+
+PostgreSQL se ejecuta localmente mediante Docker Compose y solo publica su puerto en
+`127.0.0.1`.
+
+```bash
+cp .env.example .env
+docker compose up -d --wait database
+set -a
+source .env
+set +a
+uv run fde-import examples/customers-valid.csv --report validation-report.json
+```
+
+Repetir el ultimo comando devuelve `status=already_imported` sin crear duplicados. Un
+cliente existente con datos diferentes genera `status=conflict` y revierte todo el lote.
+El modelo y el limite transaccional estan documentados en
+[`docs/database-design.md`](docs/database-design.md).
+
+Existe un lote reproducible para demostrar el conflicto:
+
+```bash
+uv run fde-import examples/customers-conflict.csv --report validation-report.json
+```
+
+Para detener PostgreSQL sin borrar los datos:
+
+```bash
+docker compose down
+```
+
 ## Calidad y pruebas
 
 ```bash
 uv run ruff format --check .
 uv run ruff check .
-uv run pytest
+TEST_DATABASE_URL="$DATABASE_URL" uv run pytest
 ```
 
 GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
@@ -69,8 +100,10 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 .
 ├── .github/workflows/ci.yml   # Integracion continua
 ├── docs/problem-brief.md      # Problema, usuario y metrica
+├── examples/                  # CSV validos e invalidos
 ├── src/fde_foundation/        # Codigo Python instalable
 ├── tests/                     # Pruebas automatizadas
+├── compose.yaml               # PostgreSQL local reproducible
 ├── .env.example               # Contrato de configuracion sin secretos
 ├── .gitignore                 # Proteccion de archivos locales
 ├── pyproject.toml             # Proyecto, dependencias y herramientas
@@ -81,7 +114,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 
 El ejecutable `fde-diagnose` llama comprobaciones independientes y produce una salida
 humana o JSON. No lee ni muestra el contenido de `.env`; solo verifica que Git lo ignore.
-La aplicacion de importacion y PostgreSQL se incorporaran en fases posteriores.
+La validacion ocurre antes de conectar con PostgreSQL. La reserva del hash del archivo,
+la deteccion de conflictos y las inserciones comparten una unica transaccion.
 
 ## Modelo de trabajo AI-native
 
@@ -92,6 +126,6 @@ un artefacto que otra persona pueda inspeccionar.
 
 ## Limitaciones conocidas
 
-- Todavia no se procesan archivos CSV.
-- Todavia no existe una base de datos.
+- La creacion de tablas es un esquema inicial; todavia no existe una herramienta formal de migraciones.
+- El email sigue siendo una clave natural provisional para el piloto.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.

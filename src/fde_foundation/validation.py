@@ -39,6 +39,7 @@ class ValidatedCustomer:
     last_name: str
     phone: str
     source: str
+    row_number: int
 
 
 @dataclass
@@ -315,7 +316,7 @@ def validate_csv(path: Path, *, max_rows: int = MAX_ROWS) -> ValidationResult:
                     issues.extend(row_issues)
                 else:
                     validated_records.append(
-                        ValidatedCustomer(email, first_name, last_name, phone, source)
+                        ValidatedCustomer(email, first_name, last_name, phone, source, row_number)
                     )
                     valid_rows += 1
     except UnicodeDecodeError:
@@ -347,10 +348,10 @@ def validate_csv(path: Path, *, max_rows: int = MAX_ROWS) -> ValidationResult:
     )
 
 
-def write_report(result: ValidationResult, destination: Path) -> None:
-    """Escribe el reporte de forma atomica para no dejar resultados parciales."""
+def write_json_report(report: dict[str, object], destination: Path) -> None:
+    """Escribe un reporte JSON de forma atomica."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(result.to_report(), indent=2, ensure_ascii=False) + "\n"
+    payload = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{destination.name}.", dir=destination.parent, text=True
     )
@@ -361,6 +362,11 @@ def write_report(result: ValidationResult, destination: Path) -> None:
     except BaseException:
         Path(temporary_name).unlink(missing_ok=True)
         raise
+
+
+def write_report(result: ValidationResult, destination: Path) -> None:
+    """Escribe el reporte de validacion sin incluir registros normalizados."""
+    write_json_report(result.to_report(), destination)
 
 
 def parse_args() -> argparse.Namespace:

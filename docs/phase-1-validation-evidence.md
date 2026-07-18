@@ -31,9 +31,8 @@ producto continua siendo menos de cinco minutos en el entorno del piloto.
 - El formato E.164 exige que el proveedor incluya codigo de pais.
 - No existe todavia transaccion de base de datos ni recuperacion ante fallos de escritura.
 
-## Proximo incremento recomendado
+## Incremento siguiente
 
-Crear PostgreSQL local reproducible, definir la tabla de clientes y registrar cada intento
-de importacion. La escritura debe ocurrir en una unica transaccion y solo despues de que
-el resultado de validacion tenga `accepted=true`.
+La persistencia transaccional en PostgreSQL fue implementada en el incremento siguiente.
+Consulta [`phase-1-database-evidence.md`](phase-1-database-evidence.md).
 

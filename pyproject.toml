@@ -8,12 +8,14 @@ version = "0.1.0"
 description = "Plantilla reproducible para la Fase 0 de la ruta FDE"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "psycopg[binary]>=3.2,<4",
+]
 
 [project.scripts]
 fde-diagnose = "fde_foundation.diagnostic:main"
+fde-import = "fde_foundation.importer:main"
 fde-validate = "fde_foundation.validation:main"
-
 
 [dependency-groups]
 dev = [
@@ -27,6 +29,9 @@ packages = ["src/fde_foundation"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+    "integration: requires a disposable PostgreSQL database",
+]
 
 [tool.ruff]
 line-length = 100
