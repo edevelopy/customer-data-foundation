@@ -18,6 +18,7 @@ from fde_foundation.database import (
     require_current_schema,
 )
 from fde_foundation.importer import ImportResult
+from fde_foundation.integration_store import enqueue_completed_import
 
 SELECT_OPERATION_COLUMNS = """
 operation_id, actor_hash, request_sha256, status, accepted, total_rows,
@@ -182,6 +183,7 @@ def complete_operation(
                 completed_at = now()
             WHERE operation_id = %s
               AND attempt_count = %s
+              AND status = 'processing'
             RETURNING {SELECT_OPERATION_COLUMNS};
             """,
             (
@@ -197,11 +199,21 @@ def complete_operation(
                 attempt_count,
             ),
         ).fetchone()
+        updated = row is not None
         if row is None:
             row = connection.execute(
                 f"SELECT {SELECT_OPERATION_COLUMNS} FROM api_operations WHERE operation_id = %s;",
                 (operation_id,),
             ).fetchone()
+        if updated and result.accepted:
+            enqueue_completed_import(
+                connection,
+                operation_id=operation_id,
+                import_status=result.status,
+                total_rows=result.total_rows,
+                inserted_rows=result.inserted_rows,
+                existing_rows=result.existing_rows,
+            )
     if row is None:
         raise psycopg.DatabaseError
     return operation_from_row(row)

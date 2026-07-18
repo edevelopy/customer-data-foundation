@@ -37,3 +37,23 @@ def test_docker_build_context_excludes_local_secrets_and_virtual_environment() -
     assert ".env" in dockerignore
     assert ".venv" in dockerignore
     assert ".git" in dockerignore
+
+
+def test_integration_services_keep_runtime_hardening_and_readiness() -> None:
+    compose = (PROJECT_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    worker = (PROJECT_ROOT / "src/fde_foundation/integration_worker.py").read_text(encoding="utf-8")
+
+    for expected in (
+        "partner_api:",
+        "integration_worker:",
+        "integration_smoke:",
+        'command: ["fde-partner-api"]',
+        'command: ["fde-integration-worker"]',
+        "PARTNER_WEBHOOK_SECRET:",
+        "read_only: true",
+        "no-new-privileges:true",
+        "cap_drop:",
+    ):
+        assert expected in compose
+    assert "/tmp/fde-integration-worker-ready" in compose
+    assert 'Path("/tmp/fde-integration-worker-ready").touch()' in worker

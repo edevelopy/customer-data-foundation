@@ -72,13 +72,20 @@ objetivo aprobado de completar un archivo en menos de cinco minutos.
 - Si PostgreSQL habia confirmado los clientes antes de la interrupcion, la idempotencia del
   archivo convierte el reintento en `already_imported`, sin duplicados.
 
-La recuperacion se activa mediante el reintento del sistema llamador; no existe todavia un
-proceso de fondo que busque operaciones abandonadas sin recibir una nueva solicitud.
+La recuperacion de la importacion se activa mediante el reintento del sistema llamador. El worker
+de integracion solo procesa notificaciones de operaciones ya terminadas; no reclama uploads
+abandonados.
 
 ## `GET /v1/imports/{operation_id}`
 
 Devuelve el mismo contrato operacional. Un operador solo puede leer sus propias operaciones;
 un auditor puede leer cualquiera. No existe endpoint para listar clientes ni operaciones.
+
+## `GET /v1/integrations/{operation_id}`
+
+Devuelve el estado de entrega externa asociado a una importacion aceptada. Aplica exactamente el
+mismo alcance de operador y auditor. El contrato completo de estados, firma y reintentos esta en
+[`integration-contract.md`](integration-contract.md).
 
 ## Salud
 
@@ -111,7 +118,7 @@ debe colocar ninguno de esos valores en tickets de soporte.
 ## Fuera de alcance de este incremento
 
 - Emision de credenciales o login para usuarios reales.
-- Procesamiento asincrono, colas y cancelacion.
+- Procesamiento asincrono del CSV y cancelacion de importaciones.
 - Rate limiting, gateway, WAF, TLS y despliegue compartido.
 - Barrido en segundo plano de operaciones abandonadas cuando el llamador no reintenta.
 - Listado o modificacion de clientes.

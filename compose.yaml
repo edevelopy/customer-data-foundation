@@ -20,7 +20,7 @@ services:
       - no-new-privileges:true
 
   api_migrate:
-    profiles: ["api"]
+    profiles: ["api", "integration"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -87,6 +87,121 @@ services:
         condition: service_healthy
     volumes:
       - ./scripts/container_smoke.py:/smoke/container_smoke.py:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 0.5
+
+  partner_api:
+    profiles: ["integration"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    command: ["fde-partner-api"]
+    restart: unless-stopped
+    environment:
+      PARTNER_DATABASE_URL: ${CONTAINER_DATABASE_URL:?define container database URL}
+      PARTNER_WEBHOOK_SECRET: ${PARTNER_WEBHOOK_SECRET:?define partner webhook secret}
+      PARTNER_API_HOST: 0.0.0.0
+      PARTNER_API_PORT: 8001
+      PARTNER_SIMULATED_FAILURES: ${PARTNER_SIMULATED_FAILURES:-0}
+    depends_on:
+      database:
+        condition: service_healthy
+      api_migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${PARTNER_PUBLIC_PORT:-8001}:8001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 10
+
+  integration_worker:
+    profiles: ["integration"]
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    command: ["fde-integration-worker"]
+    restart: unless-stopped
+    environment:
+      INTEGRATION_DATABASE_URL: ${CONTAINER_DATABASE_URL:?define container database URL}
+      PARTNER_WEBHOOK_URL: ${PARTNER_WEBHOOK_URL:?define partner webhook URL}
+      PARTNER_WEBHOOK_SECRET: ${PARTNER_WEBHOOK_SECRET:?define partner webhook secret}
+      INTEGRATION_TIMEOUT_MS: ${INTEGRATION_TIMEOUT_MS:-2000}
+      INTEGRATION_MAX_ATTEMPTS: ${INTEGRATION_MAX_ATTEMPTS:-5}
+      INTEGRATION_BASE_BACKOFF_SECONDS: ${INTEGRATION_BASE_BACKOFF_SECONDS:-2}
+      INTEGRATION_MAX_BACKOFF_SECONDS: ${INTEGRATION_MAX_BACKOFF_SECONDS:-60}
+      INTEGRATION_LEASE_SECONDS: ${INTEGRATION_LEASE_SECONDS:-30}
+      INTEGRATION_POLL_SECONDS: ${INTEGRATION_POLL_SECONDS:-0.5}
+    depends_on:
+      api_migrate:
+        condition: service_completed_successfully
+      partner_api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from pathlib import Path; raise SystemExit(not Path('/tmp/fde-integration-worker-ready').exists())",
+        ]
+      interval: 2s
+      timeout: 2s
+      start_period: 2s
+      retries: 10
+    stop_grace_period: 15s
+
+  integration_smoke:
+    profiles: ["integration-smoke"]
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    command: ["python", "/smoke/integration_smoke.py"]
+    environment:
+      API_BASE_URL: http://api:8000
+      OPERATOR_TOKEN: ${OPERATOR_TOKEN:-not-set}
+    depends_on:
+      api:
+        condition: service_healthy
+      partner_api:
+        condition: service_healthy
+      integration_worker:
+        condition: service_started
+    volumes:
+      - ./scripts/integration_smoke.py:/smoke/integration_smoke.py:ro
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777

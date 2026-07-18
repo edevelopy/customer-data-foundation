@@ -90,7 +90,7 @@ jobs:
 
       - name: Validate and build image
         run: |
-          docker compose --profile api config --quiet
+          docker compose --profile api --profile integration --profile integration-smoke config --quiet
           docker build --check .
           docker compose --profile api build api
 
@@ -106,26 +106,37 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: Start migrated stack
-        run: docker compose --profile api up -d --wait api
+        run: docker compose --profile api --profile integration up -d --wait api partner_api integration_worker
 
       - name: Verify runtime isolation
         run: |
-          container_id="$(docker compose ps -q api)"
-          test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "10001:10001"
-          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$container_id")" = "true"
-          test "$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$container_id")" = '["ALL"]'
-          test "$(docker compose exec -T api id -u)" = "10001"
+          for service in api partner_api integration_worker; do
+            container_id="$(docker compose ps -q "$service")"
+            test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "10001:10001"
+            test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$container_id")" = "true"
+            test "$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$container_id")" = '["ALL"]'
+            test "$(docker compose exec -T "$service" id -u)" = "10001"
+          done
 
       - name: Import from isolated smoke client
         run: |
           operator_token="$(docker compose exec -T api fde-dev-token --subject container-smoke --role operator)"
           OPERATOR_TOKEN="$operator_token" docker compose --profile api --profile smoke run --rm api_smoke
 
+      - name: Deliver signed event after simulated partner failure
+        run: |
+          operator_token="$(docker compose exec -T api fde-dev-token --subject integration-smoke --role operator)"
+          OPERATOR_TOKEN="$operator_token" docker compose --profile api --profile integration --profile integration-smoke run --rm integration_smoke
+
       - name: Verify graceful shutdown
         run: |
-          container_id="$(docker compose ps -q api)"
-          docker compose stop -t 15 api
-          test "$(docker inspect --format '{{.State.ExitCode}}' "$container_id")" = "0"
+          api_id="$(docker compose ps -q api)"
+          partner_id="$(docker compose ps -q partner_api)"
+          worker_id="$(docker compose ps -q integration_worker)"
+          docker compose stop -t 15 integration_worker partner_api api
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$api_id")" = "0"
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$partner_id")" = "0"
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$worker_id")" = "0"
 
       - name: Show safe API logs on failure
         if: failure()
@@ -133,7 +144,7 @@ jobs:
 
       - name: Remove disposable stack
         if: always()
-        run: docker compose --profile api --profile smoke down --volumes --remove-orphans
+        run: docker compose --profile api --profile smoke --profile integration --profile integration-smoke down --volumes --remove-orphans
 
   publish:
     if: >-

@@ -21,7 +21,7 @@ la suite y repetir el smoke test.
 ## Orden de arranque
 
 ```text
-PostgreSQL healthy -> api_migrate exit 0 -> API healthy -> cliente smoke
+PostgreSQL healthy -> api_migrate exit 0 -> API + partner healthy -> worker healthy -> smoke
 ```
 
 `api_migrate` ejecuta `alembic upgrade head` como trabajo de una sola vez. Si termina con un
@@ -34,17 +34,18 @@ y escribir las tablas autorizadas.
 
 ## Endurecimiento de ejecucion
 
-Los servicios API, migracion y smoke client usan:
+Los servicios API, migracion, partner, worker y smoke client usan:
 
 - filesystem raiz de solo lectura;
 - `/tmp` en memoria, con tamano limitado y sin ejecucion de binarios;
 - todas las capacidades Linux eliminadas;
 - `no-new-privileges`;
-- limites de procesos, memoria y CPU para la API y el smoke client;
+- limites de procesos, memoria y CPU para todos los procesos persistentes y clientes smoke;
 - puerto HTTP publicado solamente en `127.0.0.1` durante el piloto.
 
-La API recibe 15 segundos para cerrar despues de `SIGTERM`. La prueba observada exige codigo
-de salida `0` y `OOMKilled=false`.
+La API y el worker reciben 15 segundos para cerrar despues de `SIGTERM`. El worker anuncia
+readiness mediante una marca efimera en `/tmp` despues de validar su configuracion; no abre un
+puerto solo para salud.
 
 ## Configuracion y secretos
 
@@ -64,6 +65,7 @@ en el smoke test ni en logs.
 - Migracion correcta antes de readiness.
 - Migracion fallida bloquea el arranque.
 - Importacion real desde otro contenedor, sin PII en la respuesta.
+- Fallo `503` del partner, backoff y entrega en el segundo intento desde otro contenedor.
 - `SIGTERM` termina con codigo `0` dentro del periodo de gracia.
 - Suite Python, clon limpio y los dos jobs de CI en verde.
 

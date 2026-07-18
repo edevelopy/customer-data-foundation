@@ -36,6 +36,7 @@ from fde_foundation.database import (
     require_current_schema,
 )
 from fde_foundation.importer import import_csv
+from fde_foundation.integration_store import OutboxEvent, get_event_for_operation
 from fde_foundation.observability import build_import_event, emit_json_event
 from fde_foundation.settings import ConfigurationError, Settings
 from fde_foundation.validation import MAX_FILE_BYTES
@@ -64,6 +65,17 @@ class OperationResponse(BaseModel):
     issues: list[IssueResponse]
 
 
+class IntegrationResponse(BaseModel):
+    event_id: uuid.UUID
+    operation_id: uuid.UUID
+    event_type: str
+    status: str
+    attempt_count: int
+    available_at: datetime
+    last_failure_code: str | None
+    delivered_at: datetime | None
+
+
 def public_operation(operation: StoredOperation) -> OperationResponse:
     return OperationResponse(
         operation_id=operation.operation_id,
@@ -76,6 +88,19 @@ def public_operation(operation: StoredOperation) -> OperationResponse:
         attempt_count=operation.attempt_count,
         error_codes=list(operation.error_codes),
         issues=[IssueResponse.model_validate(item) for item in operation.issues],
+    )
+
+
+def public_integration(event: OutboxEvent) -> IntegrationResponse:
+    return IntegrationResponse(
+        event_id=event.event_id,
+        operation_id=event.operation_id,
+        event_type=event.event_type,
+        status=event.status,
+        attempt_count=event.attempt_count,
+        available_at=event.available_at,
+        last_failure_code=event.last_failure_code,
+        delivered_at=event.delivered_at,
     )
 
 
@@ -162,8 +187,8 @@ def emit_operation(operation: StoredOperation, *, status_override: str | None = 
 
 app = FastAPI(
     title="Customer Import API",
-    version="0.1.0",
-    description="Synchronous, strict and idempotent customer CSV imports.",
+    version="0.2.0",
+    description="Strict imports with durable asynchronous partner notifications.",
 )
 
 
@@ -302,6 +327,36 @@ async def read_import(
     if "auditor" not in principal.roles and operation.actor_hash != actor_hash:
         raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Operation was not found.")
     return public_operation(operation)
+
+
+@app.get(
+    "/v1/integrations/{operation_id}",
+    response_model=IntegrationResponse,
+    responses={401: {}, 404: {}, 503: {}},
+    tags=["integrations"],
+)
+async def read_integration(
+    operation_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+) -> IntegrationResponse:
+    try:
+        operation = await run_in_threadpool(get_operation, settings.database_url, operation_id)
+        event = await run_in_threadpool(
+            get_event_for_operation, settings.database_url, operation_id
+        )
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "database_error",
+            "Service is not ready.",
+        ) from error
+    if operation is None or event is None:
+        raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Integration was not found.")
+    actor_hash = protected_hash(settings.identifier_hash_key, "actor", principal.subject)
+    if "auditor" not in principal.roles and operation.actor_hash != actor_hash:
+        raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Integration was not found.")
+    return public_integration(event)
 
 
 def run() -> None:

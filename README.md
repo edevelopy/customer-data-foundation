@@ -1,8 +1,8 @@
 # FDE Customer Data Foundation
 
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
-la Fase 1 entrego el importador transaccional y la Fase 2 lo esta exponiendo como una API
-autenticada e idempotente.
+la Fase 1 entrego el importador transaccional y la Fase 2 lo expone como una API autenticada,
+idempotente e integrada con un sistema socio simulado.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -132,6 +132,22 @@ docker compose stop -t 15 api
 El [guion de demo contenerizada](docs/container-demo-script.md) evita exponer tokens o variables
 del contenedor.
 
+## Ejecutar la integracion empresarial
+
+La API confirma la importacion y crea una notificacion durable. Un worker separado la firma y la
+entrega a una segunda API simulada sin bloquear al operador:
+
+```bash
+docker compose --profile api --profile integration up --build -d --wait \
+  api partner_api integration_worker
+```
+
+El piloto configura un `503` inicial por evento para probar la recuperacion. El descubrimiento del
+problema esta en [`docs/integration-discovery.md`](docs/integration-discovery.md), el contrato en
+[`docs/integration-contract.md`](docs/integration-contract.md), la arquitectura y decisiones en
+[`docs/integration-architecture.md`](docs/integration-architecture.md), y la demostracion completa
+en [`docs/integration-demo-script.md`](docs/integration-demo-script.md).
+
 ## Consumir la imagen verificable
 
 Los cambios de imagen aprobados en `main` publican una imagen publica multi-plataforma en GHCR.
@@ -173,6 +189,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
   construccion, aislamiento, migracion, smoke test y apagado.
 - [`docs/phase-2-supply-chain-evidence.md`](docs/phase-2-supply-chain-evidence.md): evidencia de
   publicacion por digest, SBOM, provenance, escaneo y consumo independiente.
+- [`docs/phase-2-integration-evidence.md`](docs/phase-2-integration-evidence.md): evidencia de
+  outbox, webhook firmado, reintentos, dead letter y fallo parcial recuperado.
 
 ## Estructura
 
@@ -198,7 +216,9 @@ El ejecutable `fde-diagnose` llama comprobaciones independientes y produce una s
 humana o JSON. No lee ni muestra el contenido de `.env`; solo verifica que Git lo ignore.
 La validacion ocurre antes de escribir clientes en PostgreSQL. Una migracion explicita prepara
 el esquema; la reserva del hash, la deteccion de conflictos y las inserciones usan limites
-transaccionales explicitos. La API conserva solo HMAC del actor y de la clave de idempotencia.
+transaccionales explicitos. La API conserva solo HMAC del actor y de la clave de idempotencia. Un
+transactional outbox desacopla el resultado del socio; el worker entrega at-least-once y el receptor
+deduplica por `event_id`.
 
 ## Modelo de trabajo AI-native
 
@@ -214,5 +234,7 @@ un artefacto que otra persona pueda inspeccionar.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
   rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.
+- El socio es simulado y comparte PostgreSQL solo durante el piloto; una integracion real necesita
+  almacenamiento propio, gestor de secretos, metricas y aprobacion del contrato de datos.
 - La imagen de portafolio es publica; un cliente que exija distribucion privada necesita otro
   nombre de paquete o su propio registry.

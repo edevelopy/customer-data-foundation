@@ -72,6 +72,39 @@ En Docker, comprobar ademas los estados de `database`, `api_migrate` y `api`. No
 - Escalar si un segundo intento tambien vence. Conservar estado, conteos, intento y salud de
   dependencias, sin consultar PII ni editar tablas manualmente.
 
+### Integracion permanece `pending` o `delivering`
+
+- Confirmar que `integration_worker` esta saludable y que PostgreSQL y `partner_api` responden.
+- Revisar `attempt_count`, `available_at` y `last_failure_code` mediante
+  `GET /v1/integrations/{operation_id}`; no consultar el payload ni headers.
+- `pending` con `available_at` futuro significa backoff normal. No fuerces el reloj ni edites la
+  fila para acelerar un incidente.
+- `delivering` puede ser una llamada activa. Si su lease vence, otro worker la recupera con un
+  intento nuevo; un resultado viejo queda bloqueado por fencing.
+
+### Integracion en `dead_letter`
+
+- La importacion sigue confirmada; no reenvies el CSV para crear otra operacion.
+- Identificar si el ultimo fallo fue permanente (`401`, `409`, `422`) o si se agoto el presupuesto
+  temporal (`5xx`, timeout, red).
+- Corregir credencial, contrato o dependencia antes de reprocesar. El piloto no incluye una UI de
+  replay: cualquier accion sobre dead letters requiere cambio controlado, evidencia y aprobacion.
+- Nunca borres el receipt del socio para forzar duplicados.
+
+### Firma de webhook rechazada
+
+- `invalid_signature`: comparar version del secreto y bytes canonicos sin imprimirlos.
+- `expired_signature`: comprobar NTP y zona horaria; el timestamp usa segundos Unix y una ventana
+  maxima de cinco minutos.
+- Rotar el secreto mediante el gestor de la plataforma en un entorno compartido. No lo pegues en
+  logs, tickets ni comandos visibles.
+
+### Backlog de integracion crece
+
+- Medir conteo y edad del `pending` mas antiguo, tasa de errores y latencia del socio.
+- Reducir trafico o escalar workers solo despues de confirmar capacidad del socio.
+- No aumentar reintentos agresivamente: puede convertir una caida externa en una tormenta.
+
 ### `validation_failed`
 
 - Causa probable: encabezado, campo requerido, formato, duplicado o limite del archivo.
@@ -143,6 +176,9 @@ En Docker, comprobar ademas los estados de `database`, `api_migrate` y `api`. No
 8. Reutilizar esa clave con otro archivo; confirmar `409` sin valores del CSV.
 9. Ejecutar las pruebas de recuperacion: reserva activa, lease vencido, commit previo a la
    caida, dos recuperadores y resultado antiguo descartado.
+10. Ejecutar el smoke de integracion con un `503` inicial; confirmar el mismo `event_id`, intento 2
+    y estado `delivered`.
+11. Ejecutar las pruebas de timeout, firma alterada, replay idempotente y dead letter.
 
 ## Cierre del incidente
 

@@ -22,6 +22,8 @@ fde-diagnose = "fde_foundation.diagnostic:main"
 fde-api = "fde_foundation.api:run"
 fde-dev-token = "fde_foundation.dev_token:main"
 fde-import = "fde_foundation.importer:main"
+fde-integration-worker = "fde_foundation.integration_worker:run"
+fde-partner-api = "fde_foundation.partner_api:run"
 fde-validate = "fde_foundation.validation:main"
 
 [dependency-groups]

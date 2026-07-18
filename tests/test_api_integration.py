@@ -34,7 +34,8 @@ def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     upgrade_database(database_url)
     with psycopg.connect(database_url) as connection:
         connection.execute(
-            "TRUNCATE TABLE api_operations, customers, import_batches RESTART IDENTITY CASCADE;"
+            "TRUNCATE TABLE partner_receipts, partner_delivery_attempts, integration_outbox, "
+            "api_operations, customers, import_batches RESTART IDENTITY CASCADE;"
         )
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
@@ -128,6 +129,21 @@ def test_operator_imports_and_access_is_scoped(api_client: TestClient) -> None:
     assert other_operator.status_code == 404
     assert auditor.status_code == 200
 
+    owner_integration = api_client.get(
+        f"/v1/integrations/{operation_id}", headers=headers("operator-1", ["operator"])
+    )
+    other_integration = api_client.get(
+        f"/v1/integrations/{operation_id}", headers=headers("operator-2", ["operator"])
+    )
+    auditor_integration = api_client.get(
+        f"/v1/integrations/{operation_id}", headers=headers("auditor-1", ["auditor"])
+    )
+    assert owner_integration.status_code == 200
+    assert owner_integration.json()["status"] == "pending"
+    assert owner_integration.json()["attempt_count"] == 0
+    assert other_integration.status_code == 404
+    assert auditor_integration.status_code == 200
+
 
 @pytest.mark.integration
 def test_exact_idempotent_replay_returns_same_operation(api_client: TestClient) -> None:
@@ -145,11 +161,13 @@ def test_exact_idempotent_replay_returns_same_operation(api_client: TestClient) 
         actor_hash, key_hash = connection.execute(
             "SELECT actor_hash, idempotency_key_hash FROM api_operations;"
         ).fetchone()
+        event_count = connection.execute("SELECT count(*) FROM integration_outbox;").fetchone()
 
     assert actor_hash == protected_hash(IDENTIFIER_HASH_KEY, "actor", "operator-1")
     assert key_hash == protected_hash(IDENTIFIER_HASH_KEY, "idempotency", "import-key-0002")
     assert "operator-1" not in actor_hash
     assert "import-key-0002" not in key_hash
+    assert event_count == (1,)
 
 
 @pytest.mark.integration
@@ -394,3 +412,6 @@ def test_one_concurrent_recovery_wins_and_stale_completion_is_fenced(
     )
     assert current_completion.status == "imported"
     assert current_completion.attempt_count == 2
+    with psycopg.connect(database_url) as connection:
+        event_count = connection.execute("SELECT count(*) FROM integration_outbox;").fetchone()
+    assert event_count == (1,)

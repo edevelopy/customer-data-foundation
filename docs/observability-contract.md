@@ -34,6 +34,23 @@ No se permiten nombres, emails, telefonos, ruta o nombre del archivo, contenido 
 hash del archivo, usuario de PostgreSQL, contrasena, host ni URL de conexion. El reporte
 detallado conserva fila, campo, codigo y correccion, pero tampoco copia valores recibidos.
 
+## Evento de entrega externa
+
+Cada intento del worker emite una linea JSON con un contrato separado:
+
+| Campo | Uso |
+|---|---|
+| `event_id` | Correlacion de transporte, nunca identidad de cliente |
+| `event_type` | Version funcional del flujo |
+| `status` | `delivered`, `pending`, `dead_letter` o `stale_attempt` |
+| `attempt_count` | Presupuesto consumido |
+| `duration_ms` | Latencia HTTP observada |
+| `error_code` | Clasificacion segura como `partner_http_503` o `partner_timeout` |
+
+No se registra el payload, URL, secreto, firma, timestamp, headers ni respuesta del socio. El
+estado persistido conserva `last_failure_code` aunque un intento posterior entregue correctamente,
+permitiendo explicar la recuperacion.
+
 ## Metricas derivadas
 
 - Tasa de exito: `imported` y `already_imported` dividido por ejecuciones totales.
@@ -41,3 +58,5 @@ detallado conserva fila, campo, codigo y correccion, pero tampoco copia valores 
 - Calidad de entrada: frecuencia de `validation_failed` y sus `error_codes`.
 - Conflictos: frecuencia de `customer_conflict`.
 - Volumen: suma de `total_rows`, `inserted_rows` y `existing_rows`.
+- Integracion: entregas por estado, intentos por evento, latencia y edad del evento pendiente mas
+  antiguo.
