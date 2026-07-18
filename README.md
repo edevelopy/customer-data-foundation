@@ -92,8 +92,9 @@ docker compose down
 
 ## Ejecutar la API local
 
-El contrato completo esta en [`docs/api-contract.md`](docs/api-contract.md). Despues de
-cargar `.env`, iniciar PostgreSQL y aplicar migraciones:
+El contrato narrado esta en [`docs/api-contract.md`](docs/api-contract.md) y la especificacion
+maquina-legible versionada en [`docs/openapi.json`](docs/openapi.json). Despues de cargar `.env`,
+iniciar PostgreSQL y aplicar migraciones:
 
 ```bash
 uv run fde-api
@@ -175,6 +176,13 @@ Usa la URL de pruebas, nunca `DATABASE_URL`, al ejecutar Pytest. `database_test`
 almacenamiento efimero y no comparte volumen con la base de desarrollo.
 
 GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
+
+Si cambia un endpoint o modelo HTTP, regenerar y validar el contrato antes de confirmar:
+
+```bash
+uv run python scripts/export_openapi.py
+uv run pytest tests/test_openapi_contract.py
+```
 
 ## Operacion y evaluacion
 
