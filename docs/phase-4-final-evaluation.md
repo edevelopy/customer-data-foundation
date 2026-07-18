@@ -35,6 +35,18 @@ aprobacion humana. No se aprueba todavia un piloto productivo con OpenAI o datos
 - Smoke agente: `pending -> approved -> executed` con resultado `simulated_followup_queued`.
 - El stack, red y volumen de smoke fueron eliminados despues de la prueba.
 
+## Entrega remota verificada
+
+- PR [#4](https://github.com/edevelopy/customer-data-foundation/pull/4) fusionado por squash en
+  `main`, commit `eda580167874d3468e50d123087dbee3b1f44fcc`.
+- Workflow de `main`
+  [29644387433](https://github.com/edevelopy/customer-data-foundation/actions/runs/29644387433):
+  calidad, migracion, 109 pruebas, contenedor, Trivy, publicacion, SBOM y attestations en verde.
+- Imagen multi-arquitectura inmutable:
+  `ghcr.io/edevelopy/customer-data-foundation-api@sha256:c04e77b5eb9fa977d9b87240192b320ba4a3145b241376cc66868c6622388eca`.
+- Plataformas publicadas: `linux/amd64` y `linux/arm64`; provenance y SBOM fueron creados y
+  verificados por el mismo pipeline.
+
 ## Lo que se demostro
 
 1. La autorizacion ocurre antes de la generacion y tambien se revalida al usar cache.

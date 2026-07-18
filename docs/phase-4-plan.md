@@ -40,7 +40,7 @@ Despues se realizara una evaluacion final de la Fase 4 con evidencia desde un cl
 - Incremento 3: aprobado localmente; respuestas fundamentadas, citas y rechazo seguro.
 - Incremento 4: aprobado localmente; 38 casos versionados y seis puertas reproducibles.
 - Incremento 5: aprobado localmente; accion simulada, aprobacion separada, auditoria y controles.
-- Evaluacion final local: aprobada con 91/100; entrega remota y verificacion de `main` en curso.
+- Evaluacion final: aprobada con 91/100; PR #4 fusionado, `main` verde e imagen publicada por digest.
 
 La ausencia de una credencial de OpenAI se registra como limite: los adaptadores reales existen,
 pero las pruebas locales deterministas no se presentan como llamadas ni calidad real del proveedor.
