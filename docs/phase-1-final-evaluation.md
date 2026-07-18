@@ -38,6 +38,17 @@ convierte este piloto en un sistema productivo ni reemplaza validacion con usuar
 - Base de pruebas separada y efimera; no trunca desarrollo.
 - Instalacion, migracion, importacion y pruebas reproducibles desde README.
 
+## Verificacion final observada
+
+- Suite local aislada: 20 pruebas aprobadas.
+- GitHub Actions: migracion y 20 pruebas aprobadas en PostgreSQL efimero.
+- Clon nuevo: dependencias instaladas desde `uv.lock`, dos bases aisladas saludables,
+  revision `0001_customer_imports`, 3 clientes importados y 20 pruebas aprobadas.
+- Formato y linting aprobados tanto en el repositorio de trabajo como en el clon nuevo.
+
+Pipeline observado:
+<https://github.com/edevelopy/customer-data-foundation/actions/runs/29630716578>
+
 ## Retrospectiva
 
 Funciono bien definir primero el contrato y separar validacion, persistencia y operacion.
@@ -62,4 +73,3 @@ recuperacion. El siguiente proyecto debe introducir privilegios minimos desde el
 La Fase 2 incorporara FastAPI y un contrato HTTP alrededor del dominio ya probado. Antes de
 implementar endpoints se definiran autenticacion, roles, limites de peticion, idempotencia y
 criterios de aceptacion de la API.
-
