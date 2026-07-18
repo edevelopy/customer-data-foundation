@@ -37,3 +37,14 @@ su servicio administrado.
 La rotacion dual no esta implementada: se documenta una rotacion coordinada por release. El
 ambiente reproducible que monta estos archivos y ejecuta el preflight pertenece al siguiente
 incremento.
+
+## Evidencia remota observada
+
+- Commit: `516437f4b72129b6a75b6a39906a4c5e54dd188c`.
+- Pipeline: [CI 29639237726](https://github.com/edevelopy/customer-data-foundation/actions/runs/29639237726).
+- Jobs `quality`, `container`, `image_changes` y `publish`: aprobados.
+- Artifact JUnit: 59 pruebas, cero fallos y cero errores.
+- Coverage XML: 78.26% de lineas y 67.01% de ramas; gate combinado aprobado.
+- Imagen:
+  `ghcr.io/edevelopy/customer-data-foundation-api@sha256:bd0bbcc7edb4373064281a82c61092e9fc1693be244e566f9a501424118f2080`.
+- SBOM SHA-256: `06a522cf97b4ad9d21a8f81885791a0e42b136d96d6159ac41914af8f2a2d0a5`.
