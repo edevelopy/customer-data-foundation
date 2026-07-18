@@ -199,6 +199,8 @@ uv run pytest tests/test_openapi_contract.py
   publicacion por digest, SBOM, provenance, escaneo y consumo independiente.
 - [`docs/phase-2-integration-evidence.md`](docs/phase-2-integration-evidence.md): evidencia de
   outbox, webhook firmado, reintentos, dead letter y fallo parcial recuperado.
+- [`docs/phase-2-final-evaluation.md`](docs/phase-2-final-evaluation.md): rubrica, examen desde clon
+  limpio, limites y decision formal de aprobacion de la Fase 2.
 
 ## Estructura
 
