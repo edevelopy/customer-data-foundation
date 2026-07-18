@@ -1,4 +1,4 @@
-# Evidencia de Fase 2 — Incremento 1: contrato HTTP
+# Evidencia de Fase 2 — Incrementos 1 y 2
 
 Fecha: 18 de julio de 2026.
 
@@ -20,7 +20,7 @@ uv run ruff check .
 TEST_DATABASE_URL=postgresql://fde_test:***@localhost:55434/fde_test uv run pytest
 ```
 
-Resultado observado: 33 pruebas aprobadas, incluyendo PostgreSQL real para integracion.
+Resultado local actual: 37 pruebas aprobadas, incluyendo PostgreSQL real para integracion.
 
 Casos cubiertos:
 
@@ -32,6 +32,11 @@ Casos cubiertos:
 - Persistencia de sujeto y clave como HMAC, sin los valores originales.
 - Archivo invalido sin PII, header ausente y archivo mayor de 10 MiB.
 - Liveness, readiness, migraciones, transacciones, rollback y concurrencia del importador.
+- Reserva activa con `202`, `Retry-After` y el mismo `operation_id`.
+- Recuperacion de lease vencido antes de escribir datos.
+- Recuperacion despues de confirmar datos, sin duplicar cliente ni lote.
+- Dos recuperadores simultaneos con un unico ganador.
+- Resultado de un intento antiguo descartado mediante fencing por `attempt_count`.
 
 ## Evidencia contra el proceso HTTP real
 
@@ -48,13 +53,18 @@ locales de corta duracion. Resultado observado:
 
 ## Estado del entregable
 
-Un clon nuevo instalo las dependencias desde `uv.lock`, levanto bases aisladas en los puertos
+El Incremento 2 tambien se probo contra `fde-api` por HTTP real. Una reserva activa devolvio
+`202`, `Retry-After: 360`, el `operation_id=4535ca1a-9aee-42a3-9bed-105fe1a87b9f` e intento 1.
+Tras vencer esa reserva sintetica, la misma solicitud conservo el identificador, termino
+`imported`, reporto intento 2 e inserto exactamente un registro sintetico.
+
+Para el Incremento 1, un clon nuevo instalo dependencias desde `uv.lock` y levanto bases en
 55435 y 55436, aplico `0002_api_operations`, aprobo formato y lint, y ejecuto las 33 pruebas.
 Los contenedores y el volumen temporales se eliminaron al terminar.
 
 GitHub Actions tambien aprobo migracion, formato, lint y 33 pruebas en PostgreSQL efimero:
 <https://github.com/edevelopy/customer-data-foundation/actions/runs/29631605146>.
 
-Este documento registra un incremento verificable, no la evaluacion final de Fase 2. Antes de
-aprobar la fase completa falta una simulacion de interrupcion/recuperacion y resolver o aceptar
-formalmente el riesgo de una operacion que permanezca en estado `processing`.
+El Incremento 2 ya supero localmente las simulaciones automatizadas y la prueba HTTP real.
+Faltan verificacion desde clon limpio y CI remoto antes de cerrarlo. Esto sigue siendo
+evidencia incremental, no la evaluacion final de Fase 2.

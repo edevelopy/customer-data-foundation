@@ -49,6 +49,10 @@ Repetir exactamente el ultimo `curl`. Debe devolver el mismo `operation_id` y la
 respuesta. Explicar que la clave evita duplicar una operacion si la red o el sistema llamador
 reintentan.
 
+Explicar tambien que, si el proceso cae antes de terminar, la reserva vence a los seis minutos.
+El mismo reintento recupera el `operation_id`, incrementa `attempt_count` y vuelve a procesar
+sin duplicar clientes ya confirmados.
+
 ## 5. Separacion de permisos — 60 segundos
 
 Crear una credencial `auditor`, consultar el `operation_id` y mostrar que puede revisar el
@@ -61,5 +65,5 @@ correccion; confirmar que la respuesta no copia email ni telefono.
 
 ## 7. Limites honestos — 30 segundos
 
-Explicar que este es el primer incremento de Fase 2: funciona localmente y tiene contrato,
-autorizacion y pruebas, pero todavia no es un despliegue productivo ni el examen final.
+Explicar que estos son los dos primeros incrementos de Fase 2: contrato HTTP y recuperacion
+segura. Todavia no constituyen un despliegue productivo ni el examen final.

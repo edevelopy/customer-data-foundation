@@ -48,6 +48,7 @@ Respuesta operacional:
   "inserted_rows": 3,
   "existing_rows": 0,
   "duration_ms": 42,
+  "attempt_count": 1,
   "error_codes": [],
   "issues": []
 }
@@ -55,6 +56,24 @@ Respuesta operacional:
 
 Los problemas de validacion pueden indicar fila, campo, codigo y correccion, pero nunca copian
 el valor recibido.
+
+## Recuperacion de una operacion interrumpida
+
+Cada intento que empieza a procesar obtiene una reserva de seis minutos. Ese margen supera el
+objetivo aprobado de completar un archivo en menos de cinco minutos.
+
+- Si la misma solicitud se repite mientras la reserva esta activa, la API devuelve `202
+  processing`, el mismo `operation_id` y un header `Retry-After` en segundos.
+- Si la reserva vencio, la misma clave, operador y contenido reclaman atomicamente la operacion,
+  conservan el `operation_id` e incrementan `attempt_count`.
+- Si dos procesos intentan recuperarla al mismo tiempo, solo uno obtiene el nuevo intento.
+- Un proceso antiguo no puede sobrescribir el resultado porque cada escritura final exige el
+  numero de intento vigente.
+- Si PostgreSQL habia confirmado los clientes antes de la interrupcion, la idempotencia del
+  archivo convierte el reintento en `already_imported`, sin duplicados.
+
+La recuperacion se activa mediante el reintento del sistema llamador; no existe todavia un
+proceso de fondo que busque operaciones abandonadas sin recibir una nueva solicitud.
 
 ## `GET /v1/imports/{operation_id}`
 
@@ -73,7 +92,7 @@ Estos endpoints no requieren JWT y no exponen configuracion ni diagnosticos inte
 | HTTP | Codigo o estado | Significado |
 |---:|---|---|
 | 200 | `imported`, `already_imported` | Operacion terminada y aceptada |
-| 202 | `processing` | La misma solicitud ya esta en curso |
+| 202 | `processing` | Reserva activa; respetar `Retry-After` y reintentar igual |
 | 400 | `invalid_idempotency_key` | Header ausente o invalido |
 | 401 | `invalid_token` | Credencial ausente, invalida o vencida |
 | 403 | `forbidden` | Identidad valida sin el rol requerido |
@@ -94,5 +113,5 @@ debe colocar ninguno de esos valores en tickets de soporte.
 - Emision de credenciales o login para usuarios reales.
 - Procesamiento asincrono, colas y cancelacion.
 - Rate limiting, gateway, WAF, TLS y despliegue compartido.
-- Recuperacion automatica de una operacion interrumpida mientras estaba `processing`.
+- Barrido en segundo plano de operaciones abandonadas cuando el llamador no reintenta.
 - Listado o modificacion de clientes.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -11,8 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fde_foundation.api import app
-from fde_foundation.api_store import protected_hash, reserve_operation
+from fde_foundation.api_store import complete_operation, protected_hash, reserve_operation
 from fde_foundation.database import upgrade_database
+from fde_foundation.importer import ImportResult, import_csv
 from fde_foundation.validation import MAX_FILE_BYTES
 
 DATABASE_URL = "postgresql://fde_test:test-only-password@localhost:55434/fde_test"
@@ -72,6 +74,27 @@ def upload(client: TestClient, request_headers: dict[str, str], content: bytes =
         headers=request_headers,
         files={"file": ("customers.csv", content, "text/csv")},
     )
+
+
+def reserve_abandoned_operation(
+    *, database_url: str, subject: str, idempotency_key: str, content: bytes = VALID_CSV
+):
+    return reserve_operation(
+        database_url=database_url,
+        identifier_hash_key=IDENTIFIER_HASH_KEY,
+        subject=subject,
+        idempotency_key=idempotency_key,
+        request_sha256=hashlib.sha256(content).hexdigest(),
+    )
+
+
+def expire_lease(database_url: str, operation_id) -> None:
+    with psycopg.connect(database_url) as connection:
+        connection.execute(
+            "UPDATE api_operations SET lease_expires_at = now() - interval '1 second' "
+            "WHERE operation_id = %s;",
+            (operation_id,),
+        )
 
 
 @pytest.mark.integration
@@ -245,3 +268,129 @@ def test_concurrent_reservations_share_one_operation(api_client: TestClient) -> 
 
     assert sorted(reservation.created for reservation in reservations) == [False, True]
     assert len({reservation.operation.operation_id for reservation in reservations}) == 1
+
+
+@pytest.mark.integration
+def test_active_lease_returns_processing_with_retry_guidance(api_client: TestClient) -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
+    reservation = reserve_abandoned_operation(
+        database_url=database_url,
+        subject="operator-active",
+        idempotency_key="import-key-active",
+    )
+
+    response = upload(
+        api_client,
+        headers("operator-active", ["operator"], "import-key-active"),
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "processing"
+    assert response.json()["operation_id"] == str(reservation.operation.operation_id)
+    assert response.json()["attempt_count"] == 1
+    assert 1 <= int(response.headers["Retry-After"]) <= 6 * 60
+
+
+@pytest.mark.integration
+def test_expired_lease_recovers_same_operation(api_client: TestClient) -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
+    reservation = reserve_abandoned_operation(
+        database_url=database_url,
+        subject="operator-recovery",
+        idempotency_key="import-key-recovery",
+    )
+    expire_lease(database_url, reservation.operation.operation_id)
+
+    response = upload(
+        api_client,
+        headers("operator-recovery", ["operator"], "import-key-recovery"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "imported"
+    assert response.json()["operation_id"] == str(reservation.operation.operation_id)
+    assert response.json()["attempt_count"] == 2
+    with psycopg.connect(database_url) as connection:
+        operation = connection.execute(
+            "SELECT attempt_count, recovered_at IS NOT NULL FROM api_operations;"
+        ).fetchone()
+        customer_count = connection.execute("SELECT count(*) FROM customers;").fetchone()
+    assert operation == (2, True)
+    assert customer_count == (1,)
+
+
+@pytest.mark.integration
+def test_recovery_after_data_commit_does_not_duplicate(api_client: TestClient, tmp_path) -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
+    csv_path = tmp_path / "committed-before-crash.csv"
+    csv_path.write_bytes(VALID_CSV)
+    reservation = reserve_abandoned_operation(
+        database_url=database_url,
+        subject="operator-after-commit",
+        idempotency_key="import-key-after-commit",
+    )
+    committed_result = import_csv(csv_path, database_url)
+    assert committed_result.status == "imported"
+    expire_lease(database_url, reservation.operation.operation_id)
+
+    response = upload(
+        api_client,
+        headers("operator-after-commit", ["operator"], "import-key-after-commit"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "already_imported"
+    assert response.json()["operation_id"] == str(reservation.operation.operation_id)
+    assert response.json()["attempt_count"] == 2
+    with psycopg.connect(database_url) as connection:
+        customer_count = connection.execute("SELECT count(*) FROM customers;").fetchone()
+        batch_count = connection.execute("SELECT count(*) FROM import_batches;").fetchone()
+    assert customer_count == (1,)
+    assert batch_count == (1,)
+
+
+@pytest.mark.integration
+def test_one_concurrent_recovery_wins_and_stale_completion_is_fenced(
+    api_client: TestClient,
+) -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
+    initial = reserve_abandoned_operation(
+        database_url=database_url,
+        subject="operator-fenced",
+        idempotency_key="import-key-fenced",
+    )
+    expire_lease(database_url, initial.operation.operation_id)
+
+    def recover():
+        return reserve_abandoned_operation(
+            database_url=database_url,
+            subject="operator-fenced",
+            idempotency_key="import-key-fenced",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        recoveries = list(executor.map(lambda _index: recover(), range(2)))
+
+    assert sorted(reservation.recovered for reservation in recoveries) == [False, True]
+    assert {reservation.operation.attempt_count for reservation in recoveries} == {2}
+    result = ImportResult(True, "imported", 1, 1, 0, [])
+
+    stale_completion = complete_operation(
+        database_url,
+        initial.operation.operation_id,
+        1,
+        result,
+        10,
+    )
+    assert stale_completion.status == "processing"
+    assert stale_completion.attempt_count == 2
+
+    current_completion = complete_operation(
+        database_url,
+        initial.operation.operation_id,
+        2,
+        result,
+        10,
+    )
+    assert current_completion.status == "imported"
+    assert current_completion.attempt_count == 2

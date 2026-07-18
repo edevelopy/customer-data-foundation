@@ -134,8 +134,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 - [`docs/failure-drill-evidence.md`](docs/failure-drill-evidence.md): simulacros observados.
 - [`docs/demo-script.md`](docs/demo-script.md): demo reproducible de cinco minutos.
 - [`docs/phase-1-final-evaluation.md`](docs/phase-1-final-evaluation.md): rubrica y limites.
-- [`docs/phase-2-api-evidence.md`](docs/phase-2-api-evidence.md): evidencia del primer
-  incremento HTTP; no es aun la evaluacion final de la Fase 2.
+- [`docs/phase-2-api-evidence.md`](docs/phase-2-api-evidence.md): evidencia incremental del
+  contrato HTTP y su recuperacion; no es aun la evaluacion final de la Fase 2.
 
 ## Estructura
 
@@ -175,4 +175,4 @@ un artefacto que otra persona pueda inspeccionar.
 - El email sigue siendo una clave natural provisional para el piloto.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
-  rate limiting y recuperacion de operaciones interrumpidas.
+  rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.

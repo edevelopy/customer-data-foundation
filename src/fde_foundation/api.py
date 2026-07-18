@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import tempfile
 import time
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -28,7 +30,11 @@ from fde_foundation.api_store import (
     reserve_operation,
 )
 from fde_foundation.auth import Principal, api_settings, authenticate, require_operator
-from fde_foundation.database import SchemaNotCurrentError, require_current_schema
+from fde_foundation.database import (
+    RECOVERY_LEASE_SECONDS,
+    SchemaNotCurrentError,
+    require_current_schema,
+)
 from fde_foundation.importer import import_csv
 from fde_foundation.observability import build_import_event, emit_json_event
 from fde_foundation.settings import ConfigurationError, Settings
@@ -53,6 +59,7 @@ class OperationResponse(BaseModel):
     inserted_rows: int
     existing_rows: int
     duration_ms: int
+    attempt_count: int
     error_codes: list[str]
     issues: list[IssueResponse]
 
@@ -66,6 +73,7 @@ def public_operation(operation: StoredOperation) -> OperationResponse:
         inserted_rows=operation.inserted_rows,
         existing_rows=operation.existing_rows,
         duration_ms=operation.duration_ms,
+        attempt_count=operation.attempt_count,
         error_codes=list(operation.error_codes),
         issues=[IssueResponse.model_validate(item) for item in operation.issues],
     )
@@ -86,9 +94,16 @@ def response_status(operation_status: str) -> int:
 
 def operation_json_response(operation: StoredOperation) -> JSONResponse:
     model = public_operation(operation)
+    headers = None
+    if operation.status == "processing":
+        remaining_seconds = math.ceil(
+            (operation.lease_expires_at - datetime.now(UTC)).total_seconds()
+        )
+        headers = {"Retry-After": str(max(1, min(remaining_seconds, RECOVERY_LEASE_SECONDS)))}
     return JSONResponse(
         status_code=response_status(operation.status),
         content=model.model_dump(mode="json"),
+        headers=headers,
     )
 
 
@@ -185,7 +200,16 @@ def ready(settings: Annotated[Settings, Depends(api_settings)]) -> dict[str, str
 @app.post(
     "/v1/imports",
     response_model=OperationResponse,
-    responses={400: {}, 401: {}, 403: {}, 409: {}, 413: {}, 422: {}, 503: {}},
+    responses={
+        202: {"model": OperationResponse, "description": "Identical request is processing."},
+        400: {},
+        401: {},
+        403: {},
+        409: {},
+        413: {},
+        422: {},
+        503: {},
+    },
     tags=["imports"],
 )
 async def create_import(
@@ -220,7 +244,7 @@ async def create_import(
                 "Service is not ready.",
             ) from error
 
-        if not reservation.created:
+        if not reservation.should_process:
             if reservation.operation.request_sha256 != request_sha256:
                 raise safe_error(
                     status.HTTP_409_CONFLICT,
@@ -237,6 +261,7 @@ async def create_import(
                 complete_operation,
                 settings.database_url,
                 reservation.operation.operation_id,
+                reservation.operation.attempt_count,
                 result,
                 duration_ms,
             )

@@ -42,8 +42,24 @@ El puerto 55432 pertenecia a otro contenedor. Se identifico su propietario, no s
 el proyecto se configuro en 55433. La base de pruebas se aislo despues en 55434 con
 almacenamiento efimero para impedir que Pytest trunque datos de desarrollo.
 
+## Interrupcion de una solicitud HTTP
+
+Se creo una operacion sintetica y se simulo la caida del proceso despues de reservarla, antes
+de importar el archivo.
+
+1. El reintento durante la reserva activa devolvio `202 processing`, `Retry-After: 360`,
+   `attempt_count=1` y el `operation_id` original.
+2. Se vencio exclusivamente la reserva sintetica para representar seis minutos sin progreso.
+3. La misma solicitud reclamo atomicamente la operacion, conservo el `operation_id` y termino
+   `status=imported`, `attempt_count=2`, un insertado.
+4. Los eventos operacionales no incluyeron contenido, nombre de archivo, actor, token ni clave.
+
+Las pruebas automatizadas tambien simularon una caida despues del commit de PostgreSQL. La
+recuperacion termino `already_imported` y mantuvo exactamente un cliente y un lote. Dos
+recuperadores simultaneos produjeron un solo ganador y el intento antiguo no pudo sobrescribir
+el resultado vigente.
+
 ## Resultado
 
-Los cuatro escenarios tienen deteccion, salida segura, recuperacion y evidencia. Los
+Los cinco escenarios tienen deteccion, salida segura, recuperacion y evidencia. Los
 tiempos pertenecen a estas ejecuciones locales y no constituyen un SLA.
-

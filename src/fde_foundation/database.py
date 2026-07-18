@@ -8,10 +8,11 @@ from typing import Final
 from alembic import command
 from alembic.config import Config
 
-CURRENT_SCHEMA_REVISION: Final = "0002_api_operations"
+CURRENT_SCHEMA_REVISION: Final = "0003_recovery_leases"
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[2]
 CONNECT_TIMEOUT_SECONDS: Final = 5
 POSTGRES_OPERATION_LIMITS: Final = "-c statement_timeout=10000 -c lock_timeout=3000"
+RECOVERY_LEASE_SECONDS: Final = 6 * 60
 
 
 class SchemaNotCurrentError(Exception):

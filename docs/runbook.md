@@ -43,9 +43,13 @@ reporte JSON asociado al `operation_id`.
 
 ### Operacion permanece `processing`
 
-- Conservar `operation_id`, hora y salud de las dependencias; no reenviar con otra clave.
-- Este incremento no reconcilia automaticamente operaciones interrumpidas. Escalar para
-  inspeccion operacional sin consultar PII ni editar tablas manualmente.
+- Conservar `operation_id`; no reenviar con otra clave ni modificar el contenido.
+- Si la respuesta incluye `Retry-After`, esperar ese tiempo y repetir con el mismo operador,
+  clave y archivo.
+- Tras vencer la reserva de seis minutos, el reintento reclama automaticamente el mismo
+  `operation_id` e incrementa `attempt_count`.
+- Escalar si un segundo intento tambien vence. Conservar estado, conteos, intento y salud de
+  dependencias, sin consultar PII ni editar tablas manualmente.
 
 ### `validation_failed`
 
@@ -116,6 +120,8 @@ reporte JSON asociado al `operation_id`.
    upgrade y repetir la importacion con exito.
 7. En la API, repetir la misma clave y archivo; confirmar el mismo `operation_id`.
 8. Reutilizar esa clave con otro archivo; confirmar `409` sin valores del CSV.
+9. Ejecutar las pruebas de recuperacion: reserva activa, lease vencido, commit previo a la
+   caida, dos recuperadores y resultado antiguo descartado.
 
 ## Cierre del incidente
 

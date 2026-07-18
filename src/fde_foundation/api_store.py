@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -13,13 +14,15 @@ from psycopg.types.json import Jsonb
 from fde_foundation.database import (
     CONNECT_TIMEOUT_SECONDS,
     POSTGRES_OPERATION_LIMITS,
+    RECOVERY_LEASE_SECONDS,
     require_current_schema,
 )
 from fde_foundation.importer import ImportResult
 
 SELECT_OPERATION_COLUMNS = """
 operation_id, actor_hash, request_sha256, status, accepted, total_rows,
-inserted_rows, existing_rows, duration_ms, error_codes, issues
+inserted_rows, existing_rows, duration_ms, error_codes, issues,
+attempt_count, lease_expires_at
 """
 
 
@@ -36,12 +39,19 @@ class StoredOperation:
     duration_ms: int
     error_codes: tuple[str, ...]
     issues: list[dict[str, object]]
+    attempt_count: int
+    lease_expires_at: datetime
 
 
 @dataclass(frozen=True)
 class Reservation:
     created: bool
+    recovered: bool
     operation: StoredOperation
+
+    @property
+    def should_process(self) -> bool:
+        return self.created or self.recovered
 
 
 def protected_hash(secret: str, namespace: str, value: str) -> str:
@@ -71,6 +81,8 @@ def operation_from_row(row: tuple[object, ...]) -> StoredOperation:
         duration_ms=row[8],
         error_codes=tuple(row[9]),
         issues=list(row[10]),
+        attempt_count=row[11],
+        lease_expires_at=row[12],
     )
 
 
@@ -90,26 +102,65 @@ def reserve_operation(
         inserted = connection.execute(
             """
             INSERT INTO api_operations (
-                operation_id, actor_hash, idempotency_key_hash, request_sha256, status
-            ) VALUES (%s, %s, %s, %s, 'processing')
+                operation_id, actor_hash, idempotency_key_hash, request_sha256, status,
+                lease_expires_at
+            ) VALUES (
+                %s, %s, %s, %s, 'processing',
+                now() + (%s * interval '1 second')
+            )
             ON CONFLICT (actor_hash, idempotency_key_hash) DO NOTHING
             RETURNING operation_id;
             """,
-            (operation_id, actor_hash, key_hash, request_sha256),
+            (
+                operation_id,
+                actor_hash,
+                key_hash,
+                request_sha256,
+                RECOVERY_LEASE_SECONDS,
+            ),
         ).fetchone()
-        row = connection.execute(
-            f"SELECT {SELECT_OPERATION_COLUMNS} FROM api_operations "
-            "WHERE actor_hash = %s AND idempotency_key_hash = %s;",
-            (actor_hash, key_hash),
-        ).fetchone()
+        recovered = None
+        if inserted is None:
+            recovered = connection.execute(
+                f"""
+                UPDATE api_operations
+                SET lease_expires_at = now() + (%s * interval '1 second'),
+                    attempt_count = attempt_count + 1,
+                    recovered_at = now()
+                WHERE actor_hash = %s
+                  AND idempotency_key_hash = %s
+                  AND request_sha256 = %s
+                  AND status = 'processing'
+                  AND lease_expires_at <= now()
+                RETURNING {SELECT_OPERATION_COLUMNS};
+                """,
+                (
+                    RECOVERY_LEASE_SECONDS,
+                    actor_hash,
+                    key_hash,
+                    request_sha256,
+                ),
+            ).fetchone()
+        row = recovered
+        if row is None:
+            row = connection.execute(
+                f"SELECT {SELECT_OPERATION_COLUMNS} FROM api_operations "
+                "WHERE actor_hash = %s AND idempotency_key_hash = %s;",
+                (actor_hash, key_hash),
+            ).fetchone()
     if row is None:
         raise psycopg.DatabaseError
-    return Reservation(created=inserted is not None, operation=operation_from_row(row))
+    return Reservation(
+        created=inserted is not None,
+        recovered=recovered is not None,
+        operation=operation_from_row(row),
+    )
 
 
 def complete_operation(
     database_url: str,
     operation_id: uuid.UUID,
+    attempt_count: int,
     result: ImportResult,
     duration_ms: int,
 ) -> StoredOperation:
@@ -130,6 +181,7 @@ def complete_operation(
                 issues = %s,
                 completed_at = now()
             WHERE operation_id = %s
+              AND attempt_count = %s
             RETURNING {SELECT_OPERATION_COLUMNS};
             """,
             (
@@ -142,8 +194,14 @@ def complete_operation(
                 error_codes,
                 Jsonb(issues),
                 operation_id,
+                attempt_count,
             ),
         ).fetchone()
+        if row is None:
+            row = connection.execute(
+                f"SELECT {SELECT_OPERATION_COLUMNS} FROM api_operations WHERE operation_id = %s;",
+                (operation_id,),
+            ).fetchone()
     if row is None:
         raise psycopg.DatabaseError
     return operation_from_row(row)
