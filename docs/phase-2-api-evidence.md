@@ -48,6 +48,13 @@ locales de corta duracion. Resultado observado:
 
 ## Estado del entregable
 
+Un clon nuevo instalo las dependencias desde `uv.lock`, levanto bases aisladas en los puertos
+55435 y 55436, aplico `0002_api_operations`, aprobo formato y lint, y ejecuto las 33 pruebas.
+Los contenedores y el volumen temporales se eliminaron al terminar.
+
+GitHub Actions tambien aprobo migracion, formato, lint y 33 pruebas en PostgreSQL efimero:
+<https://github.com/edevelopy/customer-data-foundation/actions/runs/29631605146>.
+
 Este documento registra un incremento verificable, no la evaluacion final de Fase 2. Antes de
-aprobar la fase completa faltan verificacion desde clon limpio, CI remoto y una simulacion de
-interrupcion/recuperacion documentada.
+aprobar la fase completa falta una simulacion de interrupcion/recuperacion y resolver o aceptar
+formalmente el riesgo de una operacion que permanezca en estado `processing`.
