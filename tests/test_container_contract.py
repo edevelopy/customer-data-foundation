@@ -8,8 +8,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_runtime_image_is_pinned_and_non_root() -> None:
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "python:3.12.11-slim-bookworm@sha256:" in dockerfile
-    assert "ghcr.io/astral-sh/uv:0.11.16@sha256:" in dockerfile
+    assert "python:3.12.13-slim-bookworm@sha256:" in dockerfile
+    assert "ghcr.io/astral-sh/uv:0.11.29@sha256:" in dockerfile
+    assert 'org.opencontainers.image.source="https://github.com/edevelopy/' in dockerfile
     assert "USER 10001:10001" in dockerfile
     assert "STOPSIGNAL SIGTERM" in dockerfile
     assert "/health/ready" in dockerfile

@@ -7,7 +7,7 @@ responsabilidad de modificar el esquema durante su arranque normal.
 
 ## Imagen
 
-- Python `3.12.11-slim-bookworm` y uv `0.11.16` estan fijados por tag y digest SHA-256.
+- Python `3.12.13-slim-bookworm` y uv `0.11.29` estan fijados por tag y digest SHA-256.
 - `uv sync --locked --no-editable` instala solo dependencias de ejecucion desde `uv.lock`.
 - La etapa final no contiene uv, el repositorio completo, pruebas, ejemplos ni `.env`.
 - El proceso y sus archivos pertenecen a `10001:10001`; `USER 10001:10001` es el valor por
@@ -67,8 +67,14 @@ en el smoke test ni en logs.
 - `SIGTERM` termina con codigo `0` dentro del periodo de gracia.
 - Suite Python, clon limpio y los dos jobs de CI en verde.
 
+## Integridad de la entrega
+
+La publicacion, el digest, el SBOM, las attestations y el escaneo continuo se definen en
+[`supply-chain-contract.md`](supply-chain-contract.md). Este contrato continua siendo responsable
+de la construccion y ejecucion del contenedor; el contrato de cadena de suministro gobierna su
+identidad y entrega.
+
 ## Fuera de alcance
 
-- Publicacion en un registry, firma de la imagen, SBOM y escaneo continuo de vulnerabilidades.
 - TLS, gateway, rate limiting y despliegue en una plataforma cloud.
 - Backups, restauracion y alta disponibilidad de PostgreSQL.

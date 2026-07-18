@@ -132,6 +132,16 @@ docker compose stop -t 15 api
 El [guion de demo contenerizada](docs/container-demo-script.md) evita exponer tokens o variables
 del contenedor.
 
+## Consumir la imagen verificable
+
+Los pushes aprobados a `main` publican una imagen privada multi-plataforma en GHCR. Los despliegues
+deben fijar `ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest>`; `:main` solo sirve
+para descubrir la entrega mas reciente. El pipeline bloquea vulnerabilidades altas o criticas con
+correccion, genera un SBOM SPDX y firma attestations de provenance y SBOM.
+
+El contrato esta en [`docs/supply-chain-contract.md`](docs/supply-chain-contract.md) y los pasos
+que ejecuta un cliente estan en [`docs/image-consumer-guide.md`](docs/image-consumer-guide.md).
+
 ## Calidad y pruebas
 
 ```bash
@@ -160,6 +170,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
   contrato HTTP y su recuperacion; no es aun la evaluacion final de la Fase 2.
 - [`docs/phase-2-container-evidence.md`](docs/phase-2-container-evidence.md): evidencia de
   construccion, aislamiento, migracion, smoke test y apagado.
+- [`docs/phase-2-supply-chain-evidence.md`](docs/phase-2-supply-chain-evidence.md): evidencia de
+  publicacion por digest, SBOM, provenance, escaneo y consumo independiente.
 
 ## Estructura
 
@@ -201,4 +213,4 @@ un artefacto que otra persona pueda inspeccionar.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
   rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.
-- La imagen aun no se publica en un registry ni incluye SBOM, firma o escaneo continuo.
+- La imagen publicada continua privada; convertirla en publica requiere una decision explicita.
