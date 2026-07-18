@@ -22,7 +22,7 @@ from fde_foundation.integration_store import (
     mark_failed_attempt,
 )
 from fde_foundation.observability import emit_json_event
-from fde_foundation.settings import ConfigurationError
+from fde_foundation.settings import ConfigurationError, read_secret
 
 SIGNATURE_VERSION: Final = "v1"
 
@@ -45,7 +45,7 @@ class WorkerSettings:
             "DATABASE_URL", ""
         )
         partner_url = os.environ.get("PARTNER_WEBHOOK_URL", "")
-        webhook_secret = os.environ.get("PARTNER_WEBHOOK_SECRET", "")
+        webhook_secret = read_secret("PARTNER_WEBHOOK_SECRET")
         try:
             timeout_seconds = int(os.environ.get("INTEGRATION_TIMEOUT_MS", "2000")) / 1000
             max_attempts = int(os.environ.get("INTEGRATION_MAX_ATTEMPTS", "5"))
@@ -56,8 +56,6 @@ class WorkerSettings:
         except ValueError as error:
             raise ConfigurationError from error
         if not database_url or not partner_url.startswith(("http://", "https://")):
-            raise ConfigurationError
-        if len(webhook_secret) < 32:
             raise ConfigurationError
         if not 0.1 <= timeout_seconds <= 30:
             raise ConfigurationError

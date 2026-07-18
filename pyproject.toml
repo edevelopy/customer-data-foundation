@@ -18,6 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
+fde-config-check = "fde_foundation.config_check:main"
 fde-diagnose = "fde_foundation.diagnostic:main"
 fde-api = "fde_foundation.api:run"
 fde-dev-token = "fde_foundation.dev_token:main"

@@ -207,6 +207,10 @@ uv run pytest tests/test_openapi_contract.py
   brechas reales de entrega y automatizacion.
 - [`docs/phase-3-quality-evidence.md`](docs/phase-3-quality-evidence.md): type checking, cobertura
   bloqueante y artifacts de pruebas.
+- [`docs/secrets-contract.md`](docs/secrets-contract.md): interfaz `_FILE`, fallo seguro y
+  responsabilidades del gestor de secretos.
+- [`docs/phase-3-secrets-evidence.md`](docs/phase-3-secrets-evidence.md): preflight, pruebas de
+  archivos montados y limites de rotacion.
 
 ## Estructura
 
