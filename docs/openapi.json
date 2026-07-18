@@ -1,6 +1,73 @@
 {
   "components": {
     "schemas": {
+      "AITrace": {
+        "properties": {
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "prompt_id": {
+            "default": "enterprise_query_planner",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_version": {
+            "default": "1.0.0",
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "provider": {
+            "const": "openai",
+            "default": "openai",
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_response_id": {
+            "title": "Provider Response Id",
+            "type": "string"
+          },
+          "provider_storage_enabled": {
+            "default": false,
+            "title": "Provider Storage Enabled",
+            "type": "boolean"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "request_id",
+          "provider_response_id",
+          "model",
+          "duration_ms",
+          "usage",
+          "estimated_cost_usd"
+        ],
+        "title": "AITrace",
+        "type": "object"
+      },
       "Body_create_import_v1_imports_post": {
         "properties": {
           "file": {
@@ -200,6 +267,140 @@
         "title": "OperationResponse",
         "type": "object"
       },
+      "QueryPlan": {
+        "additionalProperties": false,
+        "description": "Salida estricta que alimentara la recuperacion RAG en el siguiente incremento.",
+        "properties": {
+          "intent": {
+            "enum": [
+              "policy",
+              "procedure",
+              "customer_data",
+              "general"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "language": {
+            "enum": [
+              "es",
+              "en",
+              "other"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "normalized_question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Normalized Question",
+            "type": "string"
+          },
+          "requires_retrieval": {
+            "title": "Requires Retrieval",
+            "type": "boolean"
+          },
+          "risk_flags": {
+            "items": {
+              "enum": [
+                "none",
+                "prompt_injection",
+                "personal_data",
+                "credential_request",
+                "sensitive_action"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Risk Flags",
+            "type": "array"
+          },
+          "sensitive_action": {
+            "title": "Sensitive Action",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "normalized_question",
+          "language",
+          "intent",
+          "requires_retrieval",
+          "sensitive_action",
+          "risk_flags"
+        ],
+        "title": "QueryPlan",
+        "type": "object"
+      },
+      "QueryPlanRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "QueryPlanRequest",
+        "type": "object"
+      },
+      "QueryPlanResult": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/QueryPlan"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/AITrace"
+          }
+        },
+        "required": [
+          "plan",
+          "trace"
+        ],
+        "title": "QueryPlanResult",
+        "type": "object"
+      },
+      "TokenUsage": {
+        "properties": {
+          "cached_input_tokens": {
+            "minimum": 0.0,
+            "title": "Cached Input Tokens",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "reasoning_tokens": {
+            "minimum": 0.0,
+            "title": "Reasoning Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "minimum": 0.0,
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input_tokens",
+          "output_tokens",
+          "total_tokens",
+          "cached_input_tokens",
+          "reasoning_tokens"
+        ],
+        "title": "TokenUsage",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -302,6 +503,51 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/assistant/query-plans": {
+      "post": {
+        "operationId": "create_query_plan_v1_assistant_query_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryPlanResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Query Plan",
+        "tags": [
+          "assistant"
         ]
       }
     },
