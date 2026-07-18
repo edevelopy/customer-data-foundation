@@ -68,6 +68,200 @@
         "title": "AITrace",
         "type": "object"
       },
+      "ActionArguments": {
+        "additionalProperties": false,
+        "properties": {
+          "customer_reference": {
+            "pattern": "^CUST-[A-Z0-9]{3,32}$",
+            "title": "Customer Reference",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "status_update",
+              "information_requested",
+              "case_resolved"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "template": {
+            "enum": [
+              "case_update",
+              "information_request",
+              "resolution_notice"
+            ],
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_reference",
+          "template",
+          "reason"
+        ],
+        "title": "ActionArguments",
+        "type": "object"
+      },
+      "ActionPlanRequest": {
+        "properties": {
+          "instruction": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "ActionPlanRequest",
+        "type": "object"
+      },
+      "ActionResponse": {
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_type": {
+            "title": "Action Type",
+            "type": "string"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "arguments": {
+            "$ref": "#/components/schemas/ActionArguments"
+          },
+          "arguments_sha256": {
+            "title": "Arguments Sha256",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "planner_model": {
+            "title": "Planner Model",
+            "type": "string"
+          },
+          "planner_provider": {
+            "title": "Planner Provider",
+            "type": "string"
+          },
+          "result_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Code"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "action_type",
+          "arguments",
+          "arguments_sha256",
+          "status",
+          "planner_provider",
+          "planner_model",
+          "result_code",
+          "created_at",
+          "approved_at",
+          "executed_at"
+        ],
+        "title": "ActionResponse",
+        "type": "object"
+      },
+      "AnswerRequest": {
+        "properties": {
+          "metadata_filter": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata Filter",
+            "type": "object"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AnswerRequest",
+        "type": "object"
+      },
+      "AnswerResult": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "refused",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/RAGTrace"
+          }
+        },
+        "required": [
+          "status",
+          "answer",
+          "citations",
+          "trace"
+        ],
+        "title": "AnswerResult",
+        "type": "object"
+      },
       "Body_create_import_v1_imports_post": {
         "properties": {
           "file": {
@@ -81,6 +275,139 @@
           "file"
         ],
         "title": "Body_create_import_v1_imports_post",
+        "type": "object"
+      },
+      "Citation": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "chunk_index": {
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "source_uri",
+          "title",
+          "chunk_index"
+        ],
+        "title": "Citation",
+        "type": "object"
+      },
+      "DocumentIngestRequest": {
+        "properties": {
+          "content": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Readers",
+            "type": "array"
+          },
+          "source_uri": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_uri",
+          "title",
+          "content"
+        ],
+        "title": "DocumentIngestRequest",
+        "type": "object"
+      },
+      "DocumentResponse": {
+        "properties": {
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "embedding_provider": {
+            "title": "Embedding Provider",
+            "type": "string"
+          },
+          "permission_count": {
+            "title": "Permission Count",
+            "type": "integer"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "source_uri",
+          "title",
+          "version",
+          "chunk_count",
+          "permission_count",
+          "embedding_provider",
+          "embedding_model",
+          "reused"
+        ],
+        "title": "DocumentResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -363,6 +690,245 @@
         "title": "QueryPlanResult",
         "type": "object"
       },
+      "RAGTrace": {
+        "properties": {
+          "cached": {
+            "default": false,
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "citation_count": {
+            "minimum": 0.0,
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "prompt_version": {
+            "default": "1.0.0",
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "retrieved_count": {
+            "minimum": 0.0,
+            "title": "Retrieved Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "refused",
+              "degraded",
+              "provider_unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "request_id",
+          "status",
+          "provider",
+          "model",
+          "duration_ms",
+          "usage",
+          "estimated_cost_usd",
+          "retrieved_count",
+          "citation_count"
+        ],
+        "title": "RAGTrace",
+        "type": "object"
+      },
+      "RetrievalHitResponse": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "chunk_index": {
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "lexical_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexical Rank"
+          },
+          "lexical_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexical Score"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "semantic_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rank"
+          },
+          "semantic_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Similarity"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "source_uri",
+          "title",
+          "chunk_index",
+          "content",
+          "metadata",
+          "score",
+          "lexical_rank",
+          "semantic_rank",
+          "lexical_score",
+          "semantic_similarity"
+        ],
+        "title": "RetrievalHitResponse",
+        "type": "object"
+      },
+      "RetrievalRequest": {
+        "properties": {
+          "limit": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "metadata_filter": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata Filter",
+            "type": "object"
+          },
+          "mode": {
+            "default": "hybrid",
+            "enum": [
+              "lexical",
+              "semantic",
+              "hybrid"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RetrievalRequest",
+        "type": "object"
+      },
+      "RetrievalResponse": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievalHitResponse"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "hits"
+        ],
+        "title": "RetrievalResponse",
+        "type": "object"
+      },
       "TokenUsage": {
         "properties": {
           "cached_input_tokens": {
@@ -452,7 +1018,7 @@
   "info": {
     "description": "Strict imports with durable asynchronous partner notifications.",
     "title": "Customer Import API",
-    "version": "0.3.1"
+    "version": "0.4.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -503,6 +1069,286 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}": {
+      "get": {
+        "operationId": "read_controlled_action_v1_actions__action_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}/approve": {
+      "post": {
+        "operationId": "approve_controlled_action_v1_actions__action_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Approve Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}/execute": {
+      "post": {
+        "operationId": "execute_controlled_action_v1_actions__action_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Execute Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/assistant/action-plans": {
+      "post": {
+        "operationId": "create_controlled_action_v1_assistant_action_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Controlled Action",
+        "tags": [
+          "assistant",
+          "actions"
+        ]
+      }
+    },
+    "/v1/assistant/answers": {
+      "post": {
+        "operationId": "create_grounded_answer_v1_assistant_answers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Grounded Answer",
+        "tags": [
+          "assistant"
         ]
       }
     },
@@ -747,6 +1593,99 @@
         "summary": "Read Integration",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/v1/knowledge/documents": {
+      "post": {
+        "operationId": "create_knowledge_document_v1_knowledge_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Knowledge Document",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/v1/knowledge/retrieval": {
+      "post": {
+        "operationId": "retrieve_knowledge_v1_knowledge_retrieval_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve Knowledge",
+        "tags": [
+          "knowledge"
         ]
       }
     }

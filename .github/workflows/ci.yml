@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:18.4-alpine
+        image: pgvector/pgvector:pg18-trixie
         env:
           POSTGRES_DB: fde_test
           POSTGRES_USER: fde_test

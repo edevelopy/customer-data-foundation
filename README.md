@@ -3,8 +3,9 @@
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
 la Fase 1 entrego el importador transaccional, la Fase 2 lo expuso como una API autenticada e
 integrada, y la Fase 3 entrega release, rollback, metricas, backups y automatizacion reproducible.
-La Fase 4 esta construyendo un asistente empresarial cuya recuperacion y calidad se puedan medir;
-su primer incremento incorpora una frontera LLM estructurada y observable.
+La Fase 4 entrega un asistente empresarial cuya recuperacion, respuestas y acciones se pueden medir.
+Incluye una frontera LLM estructurada, conocimiento con permisos y pgvector, RAG con citas, 38 casos
+de evaluacion y una accion simulada que exige aprobacion humana separada.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -123,6 +124,58 @@ La llamada al proveedor desactiva almacenamiento, separa instrucciones de conten
 registra modelo, version de prompt, latencia y tokens sin copiar la pregunta a la traza. El contrato,
 fallos seguros y limites estan en [`docs/ai-contract.md`](docs/ai-contract.md).
 
+## Ingerir y recuperar conocimiento autorizado
+
+El segundo incremento añade `POST /v1/knowledge/documents` para operadores y
+`POST /v1/knowledge/retrieval` para usuarios autenticados. PostgreSQL aplica permisos por sujeto
+antes de devolver resultados y permite busqueda `lexical`, `semantic` o `hybrid`.
+
+Desarrollo y pruebas pueden usar embeddings deterministas para repetir resultados sin costo; ese
+adaptador no es IA. Produccion requiere OpenAI. El modelo de datos, seguridad y limites estan en el
+[`contrato de recuperacion`](docs/knowledge-retrieval-contract.md), y la validacion observada en la
+[`evidencia del Incremento 2`](docs/phase-4-increment-2-evidence.md).
+
+## Responder con evidencia
+
+`POST /v1/assistant/answers` recupera solo fragmentos permitidos, aplica un umbral de evidencia y
+verifica que todas las citas generadas pertenezcan a esos fragmentos. Sin soporte devuelve
+`status=refused`; una cita inventada nunca se publica.
+
+En desarrollo existe un extractor determinista para probar el flujo sin costo; no es IA. Produccion
+usa el adaptador Responses API y requiere OpenAI. Consulta el [`contrato RAG`](docs/rag-contract.md)
+y la [`evidencia del Incremento 3`](docs/phase-4-increment-3-evidence.md).
+
+## Evaluar el asistente
+
+`fde-rag-eval` ejecuta 38 casos versionados contra una linea base lexical y el flujo RAG completo.
+Mide recall, precision, exactitud, groundedness, rechazo, permisos, latencia, tokens y costo; falla si
+una puerta no se cumple.
+
+```bash
+APP_ENV=test uv run fde-rag-eval \
+  --json-output docs/evals/phase4-results.json \
+  --markdown-output docs/evals/phase4-results.md
+```
+
+El [`contrato de evaluacion`](docs/evaluation-contract.md) define las formulas y limites. El
+[`resultado versionado`](docs/evals/phase4-results.md) usa un adaptador local que no es IA; no
+representa calidad ni costo vivo de OpenAI.
+
+## Proponer una accion con aprobacion humana
+
+El ultimo incremento permite que un operador proponga `send_customer_followup`, pero la solicitud
+queda `pending`. Un auditor diferente debe aprobar los argumentos exactos antes de que un operador
+pueda ejecutar la simulacion. No existe un conector real de correo o CRM.
+
+Los endpoints de propuesta, aprobacion, ejecucion y lectura estan en OpenAPI. El
+[`contrato del agente`](docs/controlled-agent-contract.md) explica roles, auditoria, rate limit,
+presupuesto, cache y degradacion; la [`evidencia del Incremento 5`](docs/phase-4-increment-5-evidence.md)
+registra las pruebas observadas.
+
+La [`evaluacion final de la Fase 4`](docs/phase-4-final-evaluation.md) separa lo demostrado de lo que
+todavia requiere un piloto real. El [`guion de demo`](docs/phase-4-demo-script.md) presenta el flujo a
+un cliente no tecnico sin ocultar sus limites.
+
 ## Ejecutar el stack Docker
 
 La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:
@@ -179,7 +232,7 @@ health y smoke antes de actualizar estado:
 
 ```bash
 uv run fde-release deploy \
-  --version v0.3.1 \
+  --version v0.4.0 \
   --image-ref ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest> \
   --secrets-dir /ruta/absoluta/secrets \
   --state-file /ruta/absoluta/state/release.json

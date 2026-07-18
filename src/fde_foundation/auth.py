@@ -84,3 +84,4 @@ def require_role(role: str) -> Callable[..., Principal]:
 
 
 require_operator = require_role("operator")
+require_auditor = require_role("auditor")

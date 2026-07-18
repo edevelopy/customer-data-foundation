@@ -32,6 +32,10 @@ Desarrollo usa la misma cuenta local para aplicacion y migracion. Un entorno com
 proporcionar credenciales distintas: el migrador puede cambiar esquema; la API solo debe leer
 y escribir las tablas autorizadas.
 
+PostgreSQL usa la distribucion del proyecto pgvector para que la migracion pueda crear la extension
+`vector`. Compose fija su digest; actualizar PostgreSQL o pgvector exige repetir migracion,
+recuperacion hibrida, rollback y smoke tests.
+
 ## Endurecimiento de ejecucion
 
 Los servicios API, migracion, partner, worker y smoke client usan:

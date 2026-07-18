@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import psycopg
 import uvicorn
@@ -23,6 +23,21 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
+from fde_foundation.actions import (
+    ActionArguments,
+    ActionNotFoundError,
+    ActionPlanner,
+    ActionRateLimitError,
+    ActionRecord,
+    ActionTransitionError,
+    DeterministicActionPlanner,
+    SelfApprovalError,
+    approve_action,
+    create_action_request,
+    enforce_action_rate_limit,
+    execute_action,
+    get_action,
+)
 from fde_foundation.ai import (
     AIProviderUnavailableError,
     AIRefusalError,
@@ -37,17 +52,39 @@ from fde_foundation.api_store import (
     protected_hash,
     reserve_operation,
 )
-from fde_foundation.auth import Principal, api_settings, authenticate, require_operator
+from fde_foundation.auth import (
+    Principal,
+    api_settings,
+    authenticate,
+    require_auditor,
+    require_operator,
+)
 from fde_foundation.database import (
     RECOVERY_LEASE_SECONDS,
     SchemaNotCurrentError,
     require_current_schema,
 )
+from fde_foundation.embeddings import (
+    EmbeddingProvider,
+    EmbeddingProviderError,
+    embedding_provider_from_environment,
+)
 from fde_foundation.importer import import_csv
 from fde_foundation.integration_store import OutboxEvent, get_event_for_operation
+from fde_foundation.knowledge import DocumentRecord, RetrievalHit, ingest_document, retrieve_chunks
 from fde_foundation.observability import build_ai_event, build_import_event, emit_json_event
+from fde_foundation.openai_action_provider import OpenAIActionPlanner
 from fde_foundation.openai_provider import OpenAIQueryPlanner
+from fde_foundation.openai_rag_provider import OpenAIGroundedAnswerGenerator
 from fde_foundation.operations import METRIC_CONTENT_TYPE, collect_snapshot, render_prometheus
+from fde_foundation.rag import (
+    AIDailyBudgetError,
+    AIRequestLimitError,
+    AnswerGenerator,
+    AnswerResult,
+    DeterministicGroundedGenerator,
+    answer_question,
+)
 from fde_foundation.settings import AISettings, ConfigurationError, Settings
 from fde_foundation.validation import MAX_FILE_BYTES
 
@@ -89,6 +126,76 @@ class IntegrationResponse(BaseModel):
 
 class QueryPlanRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
+
+
+class DocumentIngestRequest(BaseModel):
+    source_uri: str = Field(min_length=3, max_length=500)
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=100_000)
+    readers: list[str] = Field(default_factory=list, max_length=100)
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class DocumentResponse(BaseModel):
+    document_id: uuid.UUID
+    source_uri: str
+    title: str
+    version: int
+    chunk_count: int
+    permission_count: int
+    embedding_provider: str
+    embedding_model: str
+    reused: bool
+
+
+class RetrievalRequest(BaseModel):
+    query: str = Field(min_length=3, max_length=2000)
+    mode: Literal["lexical", "semantic", "hybrid"] = "hybrid"
+    limit: int = Field(default=5, ge=1, le=20)
+    metadata_filter: dict[str, str] = Field(default_factory=dict)
+
+
+class RetrievalHitResponse(BaseModel):
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    source_uri: str
+    title: str
+    chunk_index: int
+    content: str
+    metadata: dict[str, object]
+    score: float
+    lexical_rank: int | None
+    semantic_rank: int | None
+    lexical_score: float | None
+    semantic_similarity: float | None
+
+
+class RetrievalResponse(BaseModel):
+    mode: str
+    hits: list[RetrievalHitResponse]
+
+
+class AnswerRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    metadata_filter: dict[str, str] = Field(default_factory=dict)
+
+
+class ActionPlanRequest(BaseModel):
+    instruction: str = Field(min_length=10, max_length=1000)
+
+
+class ActionResponse(BaseModel):
+    action_id: uuid.UUID
+    action_type: str
+    arguments: ActionArguments
+    arguments_sha256: str
+    status: str
+    planner_provider: str
+    planner_model: str
+    result_code: str | None
+    created_at: datetime
+    approved_at: datetime | None
+    executed_at: datetime | None
 
 
 def public_operation(operation: StoredOperation) -> OperationResponse:
@@ -202,7 +309,7 @@ def emit_operation(operation: StoredOperation, *, status_override: str | None = 
 
 app = FastAPI(
     title="Customer Import API",
-    version="0.3.1",
+    version="0.4.0",
     description="Strict imports with durable asynchronous partner notifications.",
 )
 
@@ -238,6 +345,87 @@ def query_planner() -> QueryPlanner:
             "AI service is not configured.",
         ) from error
     return OpenAIQueryPlanner(settings)
+
+
+def knowledge_embedding_provider() -> EmbeddingProvider:
+    try:
+        return embedding_provider_from_environment()
+    except (ConfigurationError, ValueError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "embedding_not_configured",
+            "Knowledge retrieval is not configured.",
+        ) from error
+
+
+def grounded_answer_generator() -> AnswerGenerator:
+    app_env = os.environ.get("APP_ENV", "production").strip().casefold()
+    provider_name = os.environ.get(
+        "ANSWER_PROVIDER", "deterministic_local" if app_env in {"development", "test"} else "openai"
+    ).strip()
+    if provider_name == "deterministic_local":
+        if app_env not in {"development", "test"}:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "answer_provider_not_allowed",
+                "Answer service is not configured.",
+            )
+        return DeterministicGroundedGenerator()
+    if provider_name == "openai":
+        try:
+            return OpenAIGroundedAnswerGenerator(AISettings.from_environment())
+        except ConfigurationError as error:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "answer_provider_not_configured",
+                "Answer service is not configured.",
+            ) from error
+    raise safe_error(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "answer_provider_not_configured",
+        "Answer service is not configured.",
+    )
+
+
+def controlled_action_planner() -> ActionPlanner:
+    app_env = os.environ.get("APP_ENV", "production").strip().casefold()
+    provider_name = os.environ.get(
+        "ACTION_PROVIDER", "deterministic_local" if app_env in {"development", "test"} else "openai"
+    ).strip()
+    if provider_name == "deterministic_local":
+        if app_env not in {"development", "test"}:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "action_provider_not_allowed",
+                "Action planner is not configured.",
+            )
+        return DeterministicActionPlanner()
+    if provider_name == "openai":
+        try:
+            return OpenAIActionPlanner(AISettings.from_environment())
+        except ConfigurationError as error:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "action_provider_not_configured",
+                "Action planner is not configured.",
+            ) from error
+    raise safe_error(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "action_provider_not_configured",
+        "Action planner is not configured.",
+    )
+
+
+def public_document(record: DocumentRecord) -> DocumentResponse:
+    return DocumentResponse(**record.__dict__)
+
+
+def public_hit(hit: RetrievalHit) -> RetrievalHitResponse:
+    return RetrievalHitResponse(**hit.__dict__)
+
+
+def public_action(record: ActionRecord) -> ActionResponse:
+    return ActionResponse.model_validate(record.model_dump())
 
 
 @app.exception_handler(RequestValidationError)
@@ -331,6 +519,319 @@ async def create_query_plan(
             "ai_provider_unavailable",
             "AI service is temporarily unavailable.",
         ) from error
+
+
+@app.post(
+    "/v1/knowledge/documents",
+    response_model=DocumentResponse,
+    responses={401: {}, 403: {}, 422: {}, 503: {}},
+    tags=["knowledge"],
+)
+async def create_knowledge_document(
+    request: DocumentIngestRequest,
+    principal: Annotated[Principal, Depends(require_operator)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+) -> DocumentResponse:
+    try:
+        record = await run_in_threadpool(
+            ingest_document,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            reader_subjects=request.readers,
+            source_uri=request.source_uri,
+            title=request.title,
+            content=request.content,
+            metadata=request.metadata,
+            embedding_provider=provider,
+        )
+    except ValueError as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_document",
+            "Document could not be ingested.",
+        ) from error
+    except EmbeddingProviderError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "embedding_provider_unavailable",
+            "Knowledge retrieval is temporarily unavailable.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
+    return public_document(record)
+
+
+@app.post(
+    "/v1/knowledge/retrieval",
+    response_model=RetrievalResponse,
+    responses={401: {}, 422: {}, 503: {}},
+    tags=["knowledge"],
+)
+async def retrieve_knowledge(
+    request: RetrievalRequest,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+) -> RetrievalResponse:
+    try:
+        hits = await run_in_threadpool(
+            retrieve_chunks,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            query=request.query,
+            embedding_provider=provider,
+            mode=request.mode,
+            limit=request.limit,
+            metadata_filter=request.metadata_filter,
+        )
+    except (ValueError, EmbeddingProviderError) as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_retrieval",
+            "Knowledge request could not be processed.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
+    return RetrievalResponse(mode=request.mode, hits=[public_hit(hit) for hit in hits])
+
+
+@app.post(
+    "/v1/assistant/answers",
+    response_model=AnswerResult,
+    responses={401: {}, 422: {}, 503: {}},
+    tags=["assistant"],
+)
+async def create_grounded_answer(
+    request: AnswerRequest,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    embedding_provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+    answer_generator: Annotated[AnswerGenerator, Depends(grounded_answer_generator)],
+) -> AnswerResult:
+    try:
+        requests_per_minute = int(os.environ.get("AI_REQUEST_RATE_LIMIT_PER_MINUTE", "30"))
+        daily_token_budget = int(os.environ.get("AI_DAILY_TOKEN_BUDGET", "100000"))
+        cache_ttl_seconds = int(os.environ.get("RAG_CACHE_TTL_SECONDS", "300"))
+    except ValueError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ai_controls_not_configured",
+            "Answer service is not configured.",
+        ) from error
+    allow_degraded = os.environ.get("RAG_DEGRADED_EXTRACTIVE", "true").casefold() == "true"
+    try:
+        return await run_in_threadpool(
+            answer_question,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            question=request.question,
+            metadata_filter=request.metadata_filter,
+            embedding_provider=embedding_provider,
+            answer_generator=answer_generator,
+            requests_per_minute=requests_per_minute,
+            daily_token_budget=daily_token_budget,
+            cache_ttl_seconds=cache_ttl_seconds,
+            allow_degraded=allow_degraded,
+        )
+    except (AIRequestLimitError, AIDailyBudgetError) as error:
+        raise safe_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "ai_limit_reached",
+            "The AI usage limit has been reached. Try again later.",
+        ) from error
+    except (ValueError, EmbeddingProviderError) as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_answer_request",
+            "The question could not be processed.",
+        ) from error
+    except AIProviderUnavailableError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "answer_provider_unavailable",
+            "Answer service is temporarily unavailable.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
+
+
+@app.post(
+    "/v1/assistant/action-plans",
+    response_model=ActionResponse,
+    responses={401: {}, 403: {}, 422: {}, 429: {}, 503: {}},
+    tags=["assistant", "actions"],
+)
+async def create_controlled_action(
+    request: ActionPlanRequest,
+    principal: Annotated[Principal, Depends(require_operator)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    planner: Annotated[ActionPlanner, Depends(controlled_action_planner)],
+) -> ActionResponse:
+    try:
+        rate_limit = int(os.environ.get("ACTION_RATE_LIMIT_PER_MINUTE", "5"))
+        await run_in_threadpool(
+            enforce_action_rate_limit,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            requests_per_minute=rate_limit,
+        )
+        planned = await run_in_threadpool(
+            planner.plan, request.instruction, request_id=str(uuid.uuid4())
+        )
+        record = await run_in_threadpool(
+            create_action_request,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            planned=planned,
+        )
+    except (ValueError, TypeError) as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_action_request",
+            "The action request could not be planned.",
+        ) from error
+    except ActionRateLimitError as error:
+        raise safe_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "action_rate_limited",
+            "Too many action requests. Try again later.",
+        ) from error
+    except AIProviderUnavailableError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "action_provider_unavailable",
+            "Action planner is temporarily unavailable.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "action_store_unavailable",
+            "Action store is temporarily unavailable.",
+        ) from error
+    return public_action(record)
+
+
+@app.post(
+    "/v1/actions/{action_id}/approve",
+    response_model=ActionResponse,
+    responses={401: {}, 403: {}, 404: {}, 409: {}, 503: {}},
+    tags=["actions"],
+)
+async def approve_controlled_action(
+    action_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(require_auditor)],
+    settings: Annotated[Settings, Depends(api_settings)],
+) -> ActionResponse:
+    try:
+        record = await run_in_threadpool(
+            approve_action,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            approver_subject=principal.subject,
+            action_id=action_id,
+        )
+    except ActionNotFoundError as error:
+        raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Action was not found.") from error
+    except SelfApprovalError as error:
+        raise safe_error(
+            status.HTTP_409_CONFLICT,
+            "self_approval_forbidden",
+            "A different auditor must approve this action.",
+        ) from error
+    except ActionTransitionError as error:
+        raise safe_error(
+            status.HTTP_409_CONFLICT,
+            "invalid_action_transition",
+            "The action cannot be approved in its current state.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "action_store_unavailable",
+            "Action store is temporarily unavailable.",
+        ) from error
+    return public_action(record)
+
+
+@app.post(
+    "/v1/actions/{action_id}/execute",
+    response_model=ActionResponse,
+    responses={401: {}, 403: {}, 404: {}, 409: {}, 503: {}},
+    tags=["actions"],
+)
+async def execute_controlled_action(
+    action_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(require_operator)],
+    settings: Annotated[Settings, Depends(api_settings)],
+) -> ActionResponse:
+    try:
+        record = await run_in_threadpool(
+            execute_action,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            executor_subject=principal.subject,
+            action_id=action_id,
+        )
+    except ActionNotFoundError as error:
+        raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Action was not found.") from error
+    except ActionTransitionError as error:
+        raise safe_error(
+            status.HTTP_409_CONFLICT,
+            "approval_required",
+            "The action requires approval before execution.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "action_store_unavailable",
+            "Action store is temporarily unavailable.",
+        ) from error
+    return public_action(record)
+
+
+@app.get(
+    "/v1/actions/{action_id}",
+    response_model=ActionResponse,
+    responses={401: {}, 404: {}, 503: {}},
+    tags=["actions"],
+)
+async def read_controlled_action(
+    action_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+) -> ActionResponse:
+    try:
+        record = await run_in_threadpool(
+            get_action, database_url=settings.database_url, action_id=action_id
+        )
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "action_store_unavailable",
+            "Action store is temporarily unavailable.",
+        ) from error
+    actor_hash = protected_hash(settings.identifier_hash_key, "action-principal", principal.subject)
+    if record is None or ("auditor" not in principal.roles and record.requester_hash != actor_hash):
+        raise safe_error(status.HTTP_404_NOT_FOUND, "not_found", "Action was not found.")
+    return public_action(record)
 
 
 @app.post(

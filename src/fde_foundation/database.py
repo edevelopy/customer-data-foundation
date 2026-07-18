@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -9,7 +10,7 @@ import psycopg
 from alembic import command
 from alembic.config import Config
 
-CURRENT_SCHEMA_REVISION: Final = "0004_integration_outbox"
+CURRENT_SCHEMA_REVISION: Final = "0007_controlled_actions"
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[2]
 CONNECT_TIMEOUT_SECONDS: Final = 5
 POSTGRES_OPERATION_LIMITS: Final = "-c statement_timeout=10000 -c lock_timeout=3000"
@@ -40,8 +41,18 @@ def downgrade_database(database_url: str) -> None:
 def require_current_schema(connection: psycopg.Connection[Any]) -> None:
     """Comprueba la revision sin modificar la base de datos."""
     version_table = connection.execute("SELECT to_regclass('public.alembic_version');").fetchone()
-    if not version_table or version_table[0] is None:
+    if not version_table:
+        raise SchemaNotCurrentError
+    relation = (
+        next(iter(version_table.values()))
+        if isinstance(version_table, Mapping)
+        else version_table[0]
+    )
+    if relation is None:
         raise SchemaNotCurrentError
     revision = connection.execute("SELECT version_num FROM alembic_version;").fetchone()
-    if not revision or revision[0] != CURRENT_SCHEMA_REVISION:
+    if not revision:
+        raise SchemaNotCurrentError
+    version = next(iter(revision.values())) if isinstance(revision, Mapping) else revision[0]
+    if version != CURRENT_SCHEMA_REVISION:
         raise SchemaNotCurrentError
