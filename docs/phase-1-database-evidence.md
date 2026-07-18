@@ -28,10 +28,15 @@ otro lote sin crear un cliente duplicado.
 | Archivo invalido con URL de base inalcanzable | Rechazado antes de intentar conectar |
 | Fallo de conexion | Reporte generico sin usuario, contrasena o URL |
 | Suite local con PostgreSQL real | 16 pruebas aprobadas |
+| Clon nuevo, base separada e importacion | Aprobado con 16 pruebas |
+| GitHub Actions con PostgreSQL efimero | Aprobado |
 | Ruff | Formato y linting aprobados |
 
 Despues de la demostracion manual, PostgreSQL contenia cuatro clientes y dos lotes. El
 cliente nuevo del archivo conflictivo tenia conteo cero, confirmando el rollback.
+
+Pipeline observado:
+<https://github.com/edevelopy/customer-data-foundation/actions/runs/29630299194>
 
 ## Incidente controlado durante la preparacion
 
@@ -47,4 +52,3 @@ ya disponible localmente y CI queda como verificacion independiente de descarga.
 - Los intentos invalidados o revertidos solo producen un reporte y no se guardan como auditoria.
 - Aun faltan metricas operativas, logs estructurados y la demo final de la Fase 1.
 - No existen backups porque esta base contiene solamente datos sinteticos locales.
-
