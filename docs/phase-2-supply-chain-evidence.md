@@ -11,16 +11,16 @@ Fecha: 18 de julio de 2026.
 - SBOM SPDX JSON, provenance y attestations firmadas mediante OIDC.
 - Verificacion desde un cliente limpio sin reconstruir la imagen.
 
-## Primera ejecucion observada
+## Ejecucion final observada
 
-- Commit: `7a20281b256316e74db124fc1a86e1bd2ef122d8`.
-- Pipeline: <https://github.com/edevelopy/customer-data-foundation/actions/runs/29634151278>.
-- Los jobs `quality`, `container` y `publish` aprobaron.
+- Commit: `a4c20e6f0296603f1f59f3d4420567111358adc0`.
+- Pipeline: <https://github.com/edevelopy/customer-data-foundation/actions/runs/29634438674>.
+- Los jobs `image_changes`, `quality`, `container` y `publish` aprobaron.
 - Imagen: `ghcr.io/edevelopy/customer-data-foundation-api`.
-- Digest: `sha256:dc24fa5273c3f3a1cdce048bf97fb959f32e63954ee6bc419aaa5fdb9a45515c`.
+- Digest: `sha256:0da55830e7958c51fe9caf6a15681f9969fde263028eb9c55044bb03405d59e2`.
 - Plataformas observadas: `linux/amd64` y `linux/arm64`.
 - SBOM SPDX JSON: 137 paquetes; SHA-256
-  `73bc0a43fbd0fa1386b4c236b1e7973db3574ca40e06c5f601aa630ae47e6d5e`.
+  `b6094cc7f76e332a35cf46dbd1be9c0ded602b327c6ca6bacfbdc713ecc0b43f`.
 - Trivy local y remoto: cero hallazgos bloqueantes `HIGH` o `CRITICAL` con correccion.
 - Attestations verificadas: `https://slsa.dev/provenance/v1` y
   `https://spdx.dev/Document/v2.3`.
@@ -30,6 +30,10 @@ Fecha: 18 de julio de 2026.
 La prueba anonima tambien confirmo que el paquete heredo visibilidad publica del repositorio. La
 politica y la guia de consumo registran esa realidad y el requisito de usar otro nombre o registry
 para una entrega privada.
+
+La ejecucion final tambien aprobo dentro del propio job las verificaciones independientes del
+workflow firmante y de cada tipo de predicado. El Incremento 4 queda cerrado con artefacto,
+manifiesto, SBOM, attestations, escaneo local y remoto, y consumo externo observado.
 
 ## Limites
 
