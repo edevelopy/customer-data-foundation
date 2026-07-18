@@ -25,7 +25,20 @@ La primera prueba con un init intermediario produjo exit 143. Se retiro porque e
 crea procesos hijos; Uvicorn paso a recibir `SIGTERM` directamente como PID 1 y la repeticion
 termino con codigo 0. Este hallazgo demuestra por que el apagado se observa y no se asume.
 
-## Pendiente antes del cierre
+## Verificacion independiente y remota
 
-- Repetir construccion, stack, smoke test y 40 pruebas desde un clon limpio.
-- Publicar los cambios y confirmar los jobs `quality` y `container` en GitHub Actions.
+Un clon nuevo uso puertos 55440/55441 y 8002, construyo la imagen desde cero, aplico la
+migracion `0003_recovery_leases`, aprobo formato, lint y 40 pruebas, verifico el aislamiento,
+importo desde el smoke client y termino la API con exit 0. Sus contenedores, red y volumen
+fueron eliminados; la carpeta se movio a la Papelera.
+
+GitHub Actions ejecuto dos jobs independientes y ambos aprobaron:
+
+- `quality`: dependencias bloqueadas, lint, migracion y 40 pruebas.
+- `container`: build check, imagen, stack migrado, aislamiento, smoke HTTP, apagado y cleanup.
+
+Pipeline observado:
+<https://github.com/edevelopy/customer-data-foundation/actions/runs/29633137411>.
+
+El Incremento 3 queda cerrado con evidencia local, fallo controlado de migracion, clon limpio y
+CI remoto. Esto no publica la imagen ni constituye todavia un despliegue productivo.
