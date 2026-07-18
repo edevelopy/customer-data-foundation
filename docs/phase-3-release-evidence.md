@@ -43,3 +43,17 @@ El incremento se acepta cuando:
 El simulacro encontro que el puerto host no se activo en Docker Desktop con una unica red interna.
 La correccion pertenece a `v0.3.1`; su release, despliegue y rollback real siguen siendo criterios de
 cierre y no se sustituyen con la prueba unitaria.
+
+## Cierre con `v0.3.1`
+
+- Commit `78475a8c9b34ae8ba1ef5b4c85edb1ddcc6beb62`; CI `29640444907` aprobada.
+- Release workflow `29640574808` aprobo y publico `v0.3.1` con digest
+  `sha256:e4facaf18a44214aa7ab9f8ad81976ad56198ca2ed5b0a440695ac666a7a2b53`.
+- El deploy sobre el volumen existente quedo saludable; la API pertenecio a redes `backend` y
+  `edge`, y `127.0.0.1:58080` quedo publicado. El backend siguio interno.
+- Rollback real activo el digest `v0.3.0`, con revision `0004_integration_outbox` y conteos
+  preservados; el smoke volvio a terminar `delivered`.
+- Roll-forward dejo `v0.3.1` activo, cuatro operaciones, cuatro entregas y cero dead letters.
+
+El criterio de release y rollback queda cerrado. Ningun tag fue movido y ninguna recuperacion uso
+`alembic downgrade` sobre los datos.
