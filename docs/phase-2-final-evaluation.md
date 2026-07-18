@@ -95,6 +95,22 @@ Artefacto examinado:
   `cfda6fa1c2a0256a1a12c7841646efa7c3e3f18ecd36acd94b34e33c4aef9688`.
 - Attestations SLSA provenance y SPDX verificadas contra el workflow firmante.
 
+## Cierre formal publicado
+
+La evaluacion se publico en el commit
+`062ae453fccf2a2a712502c17c390119b2dcc12c`. El pipeline de cierre
+[CI 29636201709](https://github.com/edevelopy/customer-data-foundation/actions/runs/29636201709)
+repitio las 53 pruebas, el stack, el fallo parcial, el escaneo y la publicacion.
+
+Artefacto final de la Fase 2:
+
+- Imagen: `ghcr.io/edevelopy/customer-data-foundation-api@sha256:cedaf9de84d5e0eec54358d299f88e64bd18f21e5bce8a926e91ef5033f971e6`.
+- Plataformas: `linux/amd64` y `linux/arm64`.
+- Pull anonimo y runtime `10001:10001`: aprobados desde una configuracion Docker vacia.
+- SBOM SPDX 2.3: 137 paquetes; SHA-256
+  `028b6709f19215bffbd3e47e063c2c9df7ef9855d116755528ac872fc9e4495f`.
+- Provenance SLSA y attestation SPDX: verificadas para ese mismo digest.
+
 ## Brecha encontrada y corregida durante la evaluacion
 
 FastAPI ya publicaba OpenAPI en runtime, pero el repositorio no conservaba una copia versionada.
