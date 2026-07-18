@@ -160,6 +160,23 @@ genera un SBOM SPDX y firma attestations de provenance y SBOM.
 El contrato esta en [`docs/supply-chain-contract.md`](docs/supply-chain-contract.md) y los pasos
 que ejecuta un cliente estan en [`docs/image-consumer-guide.md`](docs/image-consumer-guide.md).
 
+## Desplegar una release inmutable
+
+El ambiente de release usa una imagen por digest, archivos de secretos, preflight, migracion,
+health y smoke antes de actualizar estado:
+
+```bash
+uv run fde-release deploy \
+  --version v0.3.0 \
+  --image-ref ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest> \
+  --secrets-dir /ruta/absoluta/secrets \
+  --state-file /ruta/absoluta/state/release.json
+```
+
+El contrato y la politica de rollback estan en
+[`docs/release-contract.md`](docs/release-contract.md). `fde-release-fixture` existe solo para
+simulacros con valores descartables; nunca genera credenciales de un cliente.
+
 ## Calidad y pruebas
 
 ```bash
@@ -211,6 +228,8 @@ uv run pytest tests/test_openapi_contract.py
   responsabilidades del gestor de secretos.
 - [`docs/phase-3-secrets-evidence.md`](docs/phase-3-secrets-evidence.md): preflight, pruebas de
   archivos montados y limites de rotacion.
+- [`docs/phase-3-release-evidence.md`](docs/phase-3-release-evidence.md): ambiente por digest,
+  promocion SemVer, smoke y estado de deploy/rollback.
 
 ## Estructura
 

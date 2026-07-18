@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-import os
-
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+from fde_foundation.settings import ConfigurationError, read_secret
 
 config = context.config
 target_metadata = None
 
 
 def sqlalchemy_url() -> str:
-    url = config.attributes.get("database_url") or os.environ.get("DATABASE_URL")
-    if not url:
-        raise RuntimeError("DATABASE_URL is required to run migrations")
+    configured_url = config.attributes.get("database_url")
+    if configured_url:
+        url = str(configured_url)
+    else:
+        try:
+            url = read_secret("DATABASE_URL", minimum_length=1)
+        except ConfigurationError as error:
+            raise RuntimeError("Database configuration is required to run migrations") from error
     if url.startswith("postgresql://"):
         return url.replace("postgresql://", "postgresql+psycopg://", 1)
     return url

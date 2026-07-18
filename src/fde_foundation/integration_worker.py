@@ -22,7 +22,7 @@ from fde_foundation.integration_store import (
     mark_failed_attempt,
 )
 from fde_foundation.observability import emit_json_event
-from fde_foundation.settings import ConfigurationError, read_secret
+from fde_foundation.settings import ConfigurationError, has_config_source, read_secret
 
 SIGNATURE_VERSION: Final = "v1"
 
@@ -41,9 +41,12 @@ class WorkerSettings:
 
     @classmethod
     def from_environment(cls) -> WorkerSettings:
-        database_url = os.environ.get("INTEGRATION_DATABASE_URL") or os.environ.get(
-            "DATABASE_URL", ""
+        database_source = (
+            "INTEGRATION_DATABASE_URL"
+            if has_config_source("INTEGRATION_DATABASE_URL")
+            else "DATABASE_URL"
         )
+        database_url = read_secret(database_source, minimum_length=1)
         partner_url = os.environ.get("PARTNER_WEBHOOK_URL", "")
         webhook_secret = read_secret("PARTNER_WEBHOOK_SECRET")
         try:
@@ -55,7 +58,7 @@ class WorkerSettings:
             poll_seconds = float(os.environ.get("INTEGRATION_POLL_SECONDS", "0.5"))
         except ValueError as error:
             raise ConfigurationError from error
-        if not database_url or not partner_url.startswith(("http://", "https://")):
+        if not partner_url.startswith(("http://", "https://")):
             raise ConfigurationError
         if not 0.1 <= timeout_seconds <= 30:
             raise ConfigurationError

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from fde_foundation.database import SchemaNotCurrentError, require_current_schema
 from fde_foundation.integration_store import EVENT_SCHEMA_VERSION, EVENT_TYPE, connect
 from fde_foundation.integration_worker import signature
-from fde_foundation.settings import ConfigurationError, read_secret
+from fde_foundation.settings import ConfigurationError, has_config_source, read_secret
 
 MAX_CLOCK_SKEW_SECONDS = 5 * 60
 MAX_EVENT_BYTES = 16 * 1024
@@ -37,7 +37,10 @@ class PartnerSettings:
 
     @classmethod
     def from_environment(cls) -> PartnerSettings:
-        database_url = os.environ.get("PARTNER_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
+        database_source = (
+            "PARTNER_DATABASE_URL" if has_config_source("PARTNER_DATABASE_URL") else "DATABASE_URL"
+        )
+        database_url = read_secret(database_source, minimum_length=1)
         webhook_secret = read_secret("PARTNER_WEBHOOK_SECRET")
         api_host = os.environ.get("PARTNER_API_HOST", "127.0.0.1")
         try:
@@ -45,8 +48,6 @@ class PartnerSettings:
             simulated_failures = int(os.environ.get("PARTNER_SIMULATED_FAILURES", "0"))
         except ValueError as error:
             raise ConfigurationError from error
-        if not database_url:
-            raise ConfigurationError
         if not 1 <= api_port <= 65535 or not 0 <= simulated_failures <= 20:
             raise ConfigurationError
         return cls(

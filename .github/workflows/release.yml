@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+  packages: write
+  attestations: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/customer-data-foundation-api
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Verify version, ancestry and required CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          project_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "v$project_version" = "$GITHUB_REF_NAME"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          for required_check in quality container; do
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
+              --jq "[.check_runs[] | select(.name == \"$required_check\") | .conclusion] | last")"
+            test "$conclusion" = "success"
+          done
+
+      - name: Authenticate to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Promote tested digest to SemVer tag
+        id: promote
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMAGE_NAME:sha-$GITHUB_SHA" | \
+            awk '$1 == "Digest:" {print $2; exit}')"
+          case "$digest" in
+            sha256:[0-9a-f][0-9a-f]*) ;;
+            *) exit 1 ;;
+          esac
+          test "${#digest}" = "71"
+          docker buildx imagetools create --tag "$IMAGE_NAME:$GITHUB_REF_NAME" "$IMAGE_NAME@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Verify signed provenance and SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          gh attestation verify "oci://$IMAGE_NAME@$IMAGE_DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --predicate-type https://slsa.dev/provenance/v1
+          gh attestation verify "oci://$IMAGE_NAME@$IMAGE_DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --predicate-type https://spdx.dev/Document
+
+      - name: Publish immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          schema_revision="$(sed -n 's/^CURRENT_SCHEMA_REVISION: Final = "\(.*\)"/\1/p' src/fde_foundation/database.py)"
+          test -n "$schema_revision"
+          jq -n \
+            --arg version "$GITHUB_REF_NAME" \
+            --arg commit "$GITHUB_SHA" \
+            --arg image "$IMAGE_NAME" \
+            --arg digest "$IMAGE_DIGEST" \
+            --arg schema_revision "$schema_revision" \
+            '{version: $version, commit: $commit, image: $image, digest: $digest, schema_revision: $schema_revision}' \
+            > release-manifest.json
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "Customer Data Foundation $GITHUB_REF_NAME" \
+            --notes "Release promovida desde un commit de main con quality, container, provenance y SBOM verificados." \
+            release-manifest.json

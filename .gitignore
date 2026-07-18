@@ -16,3 +16,4 @@ validation-report.json
 reports/*.json
 deploy/secrets/*
 !deploy/secrets/README.md
+deploy/state/

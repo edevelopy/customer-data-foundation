@@ -13,6 +13,10 @@ class ConfigurationError(Exception):
     """La configuracion requerida no esta disponible o no es segura."""
 
 
+def has_config_source(name: str) -> bool:
+    return name in os.environ or f"{name}_FILE" in os.environ
+
+
 def read_secret(name: str, *, minimum_length: int = 32) -> str:
     """Lee un secreto directo o desde NAME_FILE sin revelar valores ni rutas en errores."""
     direct_value = os.environ.get(name)
@@ -50,7 +54,7 @@ class Settings:
     @classmethod
     def from_environment(cls) -> Settings:
         app_env = os.environ.get("APP_ENV", "production")
-        database_url = os.environ.get("DATABASE_URL", "")
+        database_url = read_secret("DATABASE_URL", minimum_length=1)
         jwt_secret = read_secret("JWT_SECRET")
         identifier_hash_key = read_secret("IDENTIFIER_HASH_KEY")
         jwt_issuer = os.environ.get("JWT_ISSUER", "")

@@ -9,6 +9,8 @@ import uuid
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from fde_foundation.settings import ConfigurationError, read_secret
+
 CSV_CONTENT = (
     b"email,first_name,last_name,phone,source\n"
     b"integration.smoke@example.com,Integration,Smoke,+14075550197,synthetic\n"
@@ -26,10 +28,11 @@ def fetch_json(request: Request) -> tuple[int, dict[str, object]]:
 
 
 def main() -> int:
-    token = os.environ.get("OPERATOR_TOKEN", "")
+    try:
+        token = read_secret("OPERATOR_TOKEN", minimum_length=1)
+    except ConfigurationError as error:
+        raise SystemExit("OPERATOR_TOKEN is required") from error
     base_url = os.environ.get("API_BASE_URL", "http://api:8000")
-    if not token:
-        raise SystemExit("OPERATOR_TOKEN is required")
 
     boundary = f"fde-integration-{uuid.uuid4().hex}"
     body = (
