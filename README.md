@@ -3,9 +3,9 @@
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
 la Fase 1 entrego el importador transaccional, la Fase 2 lo expuso como una API autenticada e
 integrada, y la Fase 3 entrega release, rollback, metricas, backups y automatizacion reproducible.
-La Fase 4 esta construyendo un asistente empresarial cuya recuperacion y calidad se puedan medir.
-Ya incorpora una frontera LLM estructurada y una base documental con permisos, pgvector y busqueda
-hibrida; el RAG seguro y su evaluacion siguen en construccion.
+La Fase 4 entrega un asistente empresarial cuya recuperacion, respuestas y acciones se pueden medir.
+Incluye una frontera LLM estructurada, conocimiento con permisos y pgvector, RAG con citas, 38 casos
+de evaluacion y una accion simulada que exige aprobacion humana separada.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -172,6 +172,10 @@ Los endpoints de propuesta, aprobacion, ejecucion y lectura estan en OpenAPI. El
 presupuesto, cache y degradacion; la [`evidencia del Incremento 5`](docs/phase-4-increment-5-evidence.md)
 registra las pruebas observadas.
 
+La [`evaluacion final de la Fase 4`](docs/phase-4-final-evaluation.md) separa lo demostrado de lo que
+todavia requiere un piloto real. El [`guion de demo`](docs/phase-4-demo-script.md) presenta el flujo a
+un cliente no tecnico sin ocultar sus limites.
+
 ## Ejecutar el stack Docker
 
 La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:
@@ -228,7 +232,7 @@ health y smoke antes de actualizar estado:
 
 ```bash
 uv run fde-release deploy \
-  --version v0.3.1 \
+  --version v0.4.0 \
   --image-ref ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest> \
   --secrets-dir /ruta/absoluta/secrets \
   --state-file /ruta/absoluta/state/release.json

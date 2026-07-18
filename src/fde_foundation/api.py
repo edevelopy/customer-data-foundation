@@ -309,7 +309,7 @@ def emit_operation(operation: StoredOperation, *, status_override: str | None = 
 
 app = FastAPI(
     title="Customer Import API",
-    version="0.3.1",
+    version="0.4.0",
     description="Strict imports with durable asynchronous partner notifications.",
 )
 

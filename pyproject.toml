@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fde-customer-data-foundation"
-version = "0.3.1"
+version = "0.4.0"
 description = "API empresarial reproducible para importar e integrar datos de clientes"
 readme = "README.md"
 requires-python = ">=3.12"
