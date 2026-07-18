@@ -8,6 +8,32 @@ permissions:
   contents: read
 
 jobs:
+  image_changes:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.filter.outputs.publish }}
+    steps:
+      - name: Checkout complete history for change detection
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect image-affecting changes
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- \
+            .dockerignore Dockerfile README.md alembic.ini migrations pyproject.toml src uv.lock \
+            .github/workflows/ci.yml; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     runs-on: ubuntu-latest
     services:
@@ -110,8 +136,11 @@ jobs:
         run: docker compose --profile api --profile smoke down --volumes --remove-orphans
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [quality, container]
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.image_changes.outputs.publish == 'true'
+    needs: [image_changes, quality, container]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -207,11 +236,25 @@ jobs:
           sbom-path: sbom.spdx.json
           push-to-registry: true
 
-      - name: Verify GitHub attestations
+      - name: Verify build provenance
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: gh attestation verify "oci://$IMAGE_NAME@$IMAGE_DIGEST" --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh attestation verify "oci://$IMAGE_NAME@$IMAGE_DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --predicate-type https://slsa.dev/provenance/v1
+
+      - name: Verify SBOM attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          gh attestation verify "oci://$IMAGE_NAME@$IMAGE_DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --predicate-type https://spdx.dev/Document
 
       - name: Write supply-chain manifest
         env:

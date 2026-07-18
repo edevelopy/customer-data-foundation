@@ -13,18 +13,17 @@ DIGEST=sha256:<digest entregado>
 No despliegues solamente `:main`; esa etiqueta puede avanzar. Conserva `IMAGE@DIGEST` en la
 configuracion y en el registro de cambios del cliente.
 
-## Descarga privada
+## Descarga publica
 
-Una cuenta autorizada necesita un token con permiso `read:packages`. GitHub CLI puede entregar
-el token activo directamente a Docker sin escribirlo en el historial:
+El paquete actual permite descarga anonima. No se necesita copiar un token al cliente:
 
 ```bash
-gh auth token | docker login ghcr.io --username TU_USUARIO --password-stdin
 docker pull --platform linux/amd64 "$IMAGE@$DIGEST"
 ```
 
-Selecciona `linux/arm64` cuando ese sea el tipo de host. Nunca copies el token a `.env`, tickets,
-capturas de pantalla o documentos de entrega.
+Selecciona `linux/arm64` cuando ese sea el tipo de host. Un registry privado usaria credenciales
+de corta duracion con permiso minimo `read:packages`; nunca se copian a `.env`, tickets, capturas
+de pantalla o documentos de entrega.
 
 ## Verificacion de procedencia
 

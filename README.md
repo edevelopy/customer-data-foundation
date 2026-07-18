@@ -134,10 +134,11 @@ del contenedor.
 
 ## Consumir la imagen verificable
 
-Los pushes aprobados a `main` publican una imagen privada multi-plataforma en GHCR. Los despliegues
-deben fijar `ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest>`; `:main` solo sirve
-para descubrir la entrega mas reciente. El pipeline bloquea vulnerabilidades altas o criticas con
-correccion, genera un SBOM SPDX y firma attestations de provenance y SBOM.
+Los cambios de imagen aprobados en `main` publican una imagen publica multi-plataforma en GHCR.
+Los despliegues deben fijar
+`ghcr.io/edevelopy/customer-data-foundation-api@sha256:<digest>`; `:main` solo sirve para descubrir
+la entrega mas reciente. El pipeline bloquea vulnerabilidades altas o criticas con correccion,
+genera un SBOM SPDX y firma attestations de provenance y SBOM.
 
 El contrato esta en [`docs/supply-chain-contract.md`](docs/supply-chain-contract.md) y los pasos
 que ejecuta un cliente estan en [`docs/image-consumer-guide.md`](docs/image-consumer-guide.md).
@@ -213,4 +214,5 @@ un artefacto que otra persona pueda inspeccionar.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
   rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.
-- La imagen publicada continua privada; convertirla en publica requiere una decision explicita.
+- La imagen de portafolio es publica; un cliente que exija distribucion privada necesita otro
+  nombre de paquete o su propio registry.

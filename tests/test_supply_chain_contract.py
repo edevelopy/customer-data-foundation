@@ -11,7 +11,8 @@ def test_publish_is_limited_to_main_after_quality_gates() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
-    assert "needs: [quality, container]" in workflow
+    assert "needs: [image_changes, quality, container]" in workflow
+    assert "needs.image_changes.outputs.publish == 'true'" in workflow
     assert "packages: write" in workflow
     assert "id-token: write" in workflow
     assert "attestations: write" in workflow
@@ -29,6 +30,8 @@ def test_image_contract_uses_digest_sbom_provenance_and_vulnerability_gate() -> 
         "severity: HIGH,CRITICAL",
         "sbom.spdx.json",
         "gh attestation verify",
+        "--predicate-type https://slsa.dev/provenance/v1",
+        "--predicate-type https://spdx.dev/Document",
     ):
         assert expected in workflow
 

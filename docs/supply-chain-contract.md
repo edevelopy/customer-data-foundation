@@ -8,9 +8,10 @@ digest `sha256`, no la etiqueta mutable `main`.
 
 ## Flujo autorizado
 
-La publicacion ocurre solamente en un `push` a `main` y despues de que los jobs `quality` y
-`container` aprueban. Un pull request construye, prueba y escanea, pero no obtiene permiso para
-publicar paquetes ni attestations.
+La publicacion ocurre solamente en un `push` a `main`, cuando cambia un archivo que afecta la
+imagen o el workflow, y despues de que los jobs `quality` y `container` aprueban. Un pull request
+construye, prueba y escanea, pero no obtiene permiso para publicar paquetes ni attestations. Un
+cambio exclusivo de documentacion o evidencia no crea un digest nuevo.
 
 El destino es:
 
@@ -24,8 +25,15 @@ Cada publicacion crea:
 - `main`: conveniencia para descubrir la version mas reciente;
 - `sha256:<digest>`: identidad inmutable que debe usarse en despliegues y entregas.
 
-La primera publicacion en GHCR conserva la visibilidad privada predeterminada. Hacer el paquete
-publico es una decision de distribucion separada, no un efecto secundario del pipeline.
+## Visibilidad observada
+
+El paquete es publico y permite pull anonimo. La etiqueta OCI `org.opencontainers.image.source`
+lo enlazo antes de su primera publicacion con este repositorio publico, por lo que heredo su
+visibilidad. GitHub no permite convertir nuevamente a privado un paquete que ya es publico.
+
+La imagen no contiene secretos, configuracion de cliente, pruebas ni datos. Si un cliente exige
+distribucion privada se debe usar un nombre de paquete nuevo o su registry privado, validar la
+visibilidad antes de entregar el digest y mantener este paquete publico fuera de ese despliegue.
 
 ## Construccion y evidencia
 
@@ -36,7 +44,8 @@ publico es una decision de distribucion separada, no un efecto secundario del pi
 - Syft genera un SBOM descargable en formato SPDX JSON.
 - GitHub firma attestations de provenance y SBOM mediante OIDC; no existe una clave privada de
   firma almacenada en el repositorio.
-- El workflow verifica sus propias attestations antes de declararse correcto.
+- El workflow verifica por separado sus attestations de provenance y SBOM, incluyendo repositorio,
+  workflow firmante y tipo de predicado, antes de declararse correcto.
 
 El artefacto de CI `supply-chain-<commit>` contiene `sbom.spdx.json` y
 `supply-chain-manifest.json`. El manifiesto relaciona commit, imagen, digest y SHA-256 del SBOM.
@@ -76,5 +85,5 @@ secretos, politicas de admision, backups ni controles propios de la plataforma d
 - GHCR devuelve un digest multi-plataforma.
 - La configuracion descargada por digest mantiene `USER 10001:10001`.
 - Existen attestations verificables de provenance y SBOM para ese mismo digest.
-- Un cliente limpio puede autenticarse, descargar por digest y verificar la procedencia sin
+- Un cliente limpio puede descargar anonimamente por digest y verificar la procedencia sin
   reconstruir el repositorio.
