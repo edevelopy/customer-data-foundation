@@ -3,6 +3,8 @@
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
 la Fase 1 entrego el importador transaccional, la Fase 2 lo expuso como una API autenticada e
 integrada, y la Fase 3 entrega release, rollback, metricas, backups y automatizacion reproducible.
+La Fase 4 esta construyendo un asistente empresarial cuya recuperacion y calidad se puedan medir;
+su primer incremento incorpora una frontera LLM estructurada y observable.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -110,6 +112,16 @@ uv run fde-dev-token --subject operator-demo --role operator
 No guardes ni copies el token a logs, documentos o Git. Este ayudante no es un login ni debe
 usarse en un entorno compartido. El guion reproducible esta en
 [`docs/api-demo-script.md`](docs/api-demo-script.md).
+
+## Planificar una consulta con IA
+
+El primer incremento de la Fase 4 añade `POST /v1/assistant/query-plans`. El endpoint no responde la
+pregunta: la clasifica de forma estructurada antes de permitir acceso a documentos. Requiere JWT y,
+solo al invocarlo, una clave de OpenAI mediante `OPENAI_API_KEY` o `OPENAI_API_KEY_FILE`.
+
+La llamada al proveedor desactiva almacenamiento, separa instrucciones de contenido no confiable y
+registra modelo, version de prompt, latencia y tokens sin copiar la pregunta a la traza. El contrato,
+fallos seguros y limites estan en [`docs/ai-contract.md`](docs/ai-contract.md).
 
 ## Ejecutar el stack Docker
 
@@ -257,6 +269,12 @@ uv run pytest tests/test_openapi_contract.py
   una audiencia no tecnica.
 - [`docs/phase-3-final-evaluation.md`](docs/phase-3-final-evaluation.md): rubrica, limites y decision
   formal de aprobacion de la Fase 3.
+- [`docs/phase-4-plan.md`](docs/phase-4-plan.md): cinco incrementos y puertas de salida para un
+  asistente RAG verificable.
+- [`docs/ai-contract.md`](docs/ai-contract.md): frontera Responses API, configuracion, seguridad y
+  contrato HTTP del planificador.
+- [`docs/phase-4-increment-1-evidence.md`](docs/phase-4-increment-1-evidence.md): pruebas, limites y
+  decision del primer incremento de IA.
 
 ## Estructura
 

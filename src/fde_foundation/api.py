@@ -19,10 +19,16 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Security, Upl
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
+from fde_foundation.ai import (
+    AIProviderUnavailableError,
+    AIRefusalError,
+    QueryPlanner,
+    QueryPlanResult,
+)
 from fde_foundation.api_store import (
     StoredOperation,
     complete_operation,
@@ -39,9 +45,10 @@ from fde_foundation.database import (
 )
 from fde_foundation.importer import import_csv
 from fde_foundation.integration_store import OutboxEvent, get_event_for_operation
-from fde_foundation.observability import build_import_event, emit_json_event
+from fde_foundation.observability import build_ai_event, build_import_event, emit_json_event
+from fde_foundation.openai_provider import OpenAIQueryPlanner
 from fde_foundation.operations import METRIC_CONTENT_TYPE, collect_snapshot, render_prometheus
-from fde_foundation.settings import ConfigurationError, Settings
+from fde_foundation.settings import AISettings, ConfigurationError, Settings
 from fde_foundation.validation import MAX_FILE_BYTES
 
 UPLOAD_CHUNK_BYTES = 64 * 1024
@@ -78,6 +85,10 @@ class IntegrationResponse(BaseModel):
     available_at: datetime
     last_failure_code: str | None
     delivered_at: datetime | None
+
+
+class QueryPlanRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
 
 
 def public_operation(operation: StoredOperation) -> OperationResponse:
@@ -217,6 +228,18 @@ def unauthorized_metrics() -> HTTPException:
     )
 
 
+def query_planner() -> QueryPlanner:
+    try:
+        settings = AISettings.from_environment()
+    except ConfigurationError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ai_not_configured",
+            "AI service is not configured.",
+        ) from error
+    return OpenAIQueryPlanner(settings)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     _request: Request, _error: RequestValidationError
@@ -260,6 +283,54 @@ def metrics(
             "Operational metrics are unavailable.",
         ) from error
     return PlainTextResponse(render_prometheus(snapshot), media_type=METRIC_CONTENT_TYPE)
+
+
+@app.post(
+    "/v1/assistant/query-plans",
+    response_model=QueryPlanResult,
+    responses={401: {}, 422: {}, 503: {}},
+    tags=["assistant"],
+)
+async def create_query_plan(
+    request: QueryPlanRequest,
+    _principal: Annotated[Principal, Depends(authenticate)],
+    planner: Annotated[QueryPlanner, Depends(query_planner)],
+) -> QueryPlanResult:
+    request_id = str(uuid.uuid4())
+    try:
+        result = await run_in_threadpool(planner.plan, request.question, request_id=request_id)
+        emit_json_event(
+            build_ai_event(
+                request_id=request_id,
+                status="completed",
+                model=result.trace.model,
+                prompt_id=result.trace.prompt_id,
+                prompt_version=result.trace.prompt_version,
+                duration_ms=result.trace.duration_ms,
+                input_tokens=result.trace.usage.input_tokens,
+                output_tokens=result.trace.usage.output_tokens,
+                estimated_cost_usd=(
+                    str(result.trace.estimated_cost_usd)
+                    if result.trace.estimated_cost_usd is not None
+                    else None
+                ),
+            )
+        )
+        return result
+    except AIRefusalError as error:
+        emit_json_event(build_ai_event(request_id=request_id, status="refused"))
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "ai_refused",
+            "The request could not be processed.",
+        ) from error
+    except AIProviderUnavailableError as error:
+        emit_json_event(build_ai_event(request_id=request_id, status="provider_unavailable"))
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ai_provider_unavailable",
+            "AI service is temporarily unavailable.",
+        ) from error
 
 
 @app.post(

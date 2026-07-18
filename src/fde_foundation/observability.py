@@ -30,6 +30,33 @@ def build_import_event(
     }
 
 
+def build_ai_event(
+    *,
+    request_id: str,
+    status: str,
+    model: str | None = None,
+    prompt_id: str | None = None,
+    prompt_version: str | None = None,
+    duration_ms: int | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    estimated_cost_usd: str | None = None,
+) -> dict[str, object]:
+    """Registra ejecucion y costo sin conservar la pregunta ni la respuesta."""
+    return {
+        "event_type": "ai_query_plan",
+        "request_id": request_id,
+        "status": status,
+        "model": model,
+        "prompt_id": prompt_id,
+        "prompt_version": prompt_version,
+        "duration_ms": duration_ms,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "estimated_cost_usd": estimated_cost_usd,
+    }
+
+
 def emit_json_event(event: dict[str, object], stream: TextIO | None = None) -> None:
     """Emite exactamente un objeto JSON por linea."""
     destination = stream or sys.stdout

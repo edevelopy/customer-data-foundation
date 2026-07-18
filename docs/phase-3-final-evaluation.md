@@ -58,6 +58,7 @@ restaura y una version se revierte. La aprobacion permite avanzar; no elimina lo
 
 ## Que sigue
 
-**Fase 4 — Operacion cloud y adopcion real:** elegir con el cliente un ambiente administrado,
-IdP/TLS, gestor de secretos, almacenamiento cifrado de backups, alertamiento con propietario y
-SLO/RPO/RTO; desplegar con infraestructura como codigo y validar el flujo con una persona usuaria.
+**Fase 4 — Inteligencia artificial aplicada y verificable:** construir un asistente RAG con fuentes,
+permisos, rechazo sin evidencia, evaluaciones reproducibles y una accion simulada que exija
+aprobacion humana. La operacion cloud y la adopcion real siguen siendo brechas validas, pero no son el
+nombre ni el entregable definido para esta fase de la ruta.

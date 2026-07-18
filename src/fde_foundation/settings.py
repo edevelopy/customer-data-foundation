@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 MAX_SECRET_BYTES = 8 * 1024
@@ -11,6 +12,19 @@ MAX_SECRET_BYTES = 8 * 1024
 
 class ConfigurationError(Exception):
     """La configuracion requerida no esta disponible o no es segura."""
+
+
+def read_optional_decimal(name: str) -> Decimal | None:
+    raw_value = os.environ.get(name, "").strip()
+    if not raw_value:
+        return None
+    try:
+        value = Decimal(raw_value)
+    except InvalidOperation as error:
+        raise ConfigurationError from error
+    if not value.is_finite() or value < 0:
+        raise ConfigurationError
+    return value
 
 
 def has_config_source(name: str) -> bool:
@@ -81,4 +95,45 @@ class Settings:
             api_host=api_host,
             api_port=api_port,
             metrics_token=metrics_token,
+        )
+
+
+@dataclass(frozen=True)
+class AISettings:
+    api_key: str
+    model: str
+    timeout_seconds: float
+    max_retries: int
+    max_output_tokens: int
+    input_cost_per_million_usd: Decimal | None
+    output_cost_per_million_usd: Decimal | None
+
+    @classmethod
+    def from_environment(cls) -> AISettings:
+        api_key = read_secret("OPENAI_API_KEY", minimum_length=20)
+        model = os.environ.get("OPENAI_MODEL", "gpt-5.6-sol").strip()
+        try:
+            timeout_seconds = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "30"))
+            max_retries = int(os.environ.get("OPENAI_MAX_RETRIES", "2"))
+            max_output_tokens = int(os.environ.get("OPENAI_MAX_OUTPUT_TOKENS", "500"))
+        except ValueError as error:
+            raise ConfigurationError from error
+
+        if not model or any(character.isspace() for character in model):
+            raise ConfigurationError
+        if not 1 <= timeout_seconds <= 120:
+            raise ConfigurationError
+        if not 0 <= max_retries <= 5:
+            raise ConfigurationError
+        if not 64 <= max_output_tokens <= 4096:
+            raise ConfigurationError
+
+        return cls(
+            api_key=api_key,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            max_output_tokens=max_output_tokens,
+            input_cost_per_million_usd=read_optional_decimal("OPENAI_INPUT_COST_PER_MILLION_USD"),
+            output_cost_per_million_usd=read_optional_decimal("OPENAI_OUTPUT_COST_PER_MILLION_USD"),
         )
