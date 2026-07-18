@@ -36,3 +36,11 @@ El dump local no esta cifrado porque permanece en un directorio temporal privado
 ambiente real debe usar cifrado, almacenamiento externo, retencion y objetivos RPO/RTO aprobados.
 Las reglas no envian notificaciones a un proveedor externo hasta que el cliente elija propietario,
 canal y presupuesto de guardia.
+
+## Cierre remoto
+
+`v0.3.1` publico las metricas y la red edge en el digest
+`sha256:e4facaf18a44214aa7ab9f8ad81976ad56198ca2ed5b0a440695ac666a7a2b53`. En el ambiente vivo,
+`/metrics` autenticado reporto dos importaciones y entregas, cero dead letters; despues de rollback y
+roll-forward reporto cuatro/cuatro/cero. El puerto host y el backup verificado aprobaron despues del
+despliegue remoto, por lo que el defecto de `v0.3.0` queda cerrado.

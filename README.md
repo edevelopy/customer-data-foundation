@@ -1,8 +1,8 @@
 # FDE Customer Data Foundation
 
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
-la Fase 1 entrego el importador transaccional y la Fase 2 lo expone como una API autenticada,
-idempotente e integrada con un sistema socio simulado.
+la Fase 1 entrego el importador transaccional, la Fase 2 lo expuso como una API autenticada e
+integrada, y la Fase 3 entrega release, rollback, metricas, backups y automatizacion reproducible.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -249,6 +249,14 @@ uv run pytest tests/test_openapi_contract.py
   promocion SemVer, smoke y estado de deploy/rollback.
 - [`docs/phase-3-operations-evidence.md`](docs/phase-3-operations-evidence.md): metricas, alerta
   provocada y restauracion real aislada.
+- [`docs/phase-3-clean-clone-evidence.md`](docs/phase-3-clean-clone-evidence.md): instalacion,
+  pruebas y deploy por digest desde otro clon.
+- [`docs/phase-3-supply-chain-evidence.md`](docs/phase-3-supply-chain-evidence.md): SBOM,
+  attestations, dependencia vulnerable y proteccion de `main`.
+- [`docs/phase-3-delivery-script.md`](docs/phase-3-delivery-script.md): entrega de 15 minutos para
+  una audiencia no tecnica.
+- [`docs/phase-3-final-evaluation.md`](docs/phase-3-final-evaluation.md): rubrica, limites y decision
+  formal de aprobacion de la Fase 3.
 
 ## Estructura
 
@@ -293,6 +301,8 @@ un artefacto que otra persona pueda inspeccionar.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
   rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.
 - El socio es simulado y comparte PostgreSQL solo durante el piloto; una integracion real necesita
-  almacenamiento propio, gestor de secretos, metricas y aprobacion del contrato de datos.
+  almacenamiento propio, gestor de secretos y aprobacion del contrato de datos.
 - La imagen de portafolio es publica; un cliente que exija distribucion privada necesita otro
   nombre de paquete o su propio registry.
+- Las metricas y reglas existen, pero falta un canal de alertas con propietario y SLO del cliente.
+- Los backups se restauran localmente, pero faltan cifrado externo, retencion y RPO/RTO acordados.
