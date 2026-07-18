@@ -52,3 +52,48 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare disposable container configuration
+        run: cp .env.example .env
+
+      - name: Validate and build image
+        run: |
+          docker compose --profile api config --quiet
+          docker build --check .
+          docker compose --profile api build api
+
+      - name: Start migrated stack
+        run: docker compose --profile api up -d --wait api
+
+      - name: Verify runtime isolation
+        run: |
+          container_id="$(docker compose ps -q api)"
+          test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = "10001:10001"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$container_id")" = "true"
+          test "$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$container_id")" = '["ALL"]'
+          test "$(docker compose exec -T api id -u)" = "10001"
+
+      - name: Import from isolated smoke client
+        run: |
+          operator_token="$(docker compose exec -T api fde-dev-token --subject container-smoke --role operator)"
+          OPERATOR_TOKEN="$operator_token" docker compose --profile api --profile smoke run --rm api_smoke
+
+      - name: Verify graceful shutdown
+        run: |
+          container_id="$(docker compose ps -q api)"
+          docker compose stop -t 15 api
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$container_id")" = "0"
+
+      - name: Show safe API logs on failure
+        if: failure()
+        run: docker compose logs api
+
+      - name: Remove disposable stack
+        if: always()
+        run: docker compose --profile api --profile smoke down --volumes --remove-orphans

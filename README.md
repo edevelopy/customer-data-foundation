@@ -110,6 +110,28 @@ No guardes ni copies el token a logs, documentos o Git. Este ayudante no es un l
 usarse en un entorno compartido. El guion reproducible esta en
 [`docs/api-demo-script.md`](docs/api-demo-script.md).
 
+## Ejecutar el stack Docker
+
+La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:
+
+```bash
+docker compose --profile api up --build -d --wait api
+```
+
+El arranque se detiene si PostgreSQL no esta saludable o `alembic upgrade head` falla. La API
+se ejecuta sin root, con filesystem de solo lectura, `/tmp` efimero, capacidades eliminadas y
+recursos limitados. El contrato esta en
+[`docs/container-contract.md`](docs/container-contract.md).
+
+Para detener la API ordenadamente sin borrar PostgreSQL:
+
+```bash
+docker compose stop -t 15 api
+```
+
+El [guion de demo contenerizada](docs/container-demo-script.md) evita exponer tokens o variables
+del contenedor.
+
 ## Calidad y pruebas
 
 ```bash
@@ -136,6 +158,8 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 - [`docs/phase-1-final-evaluation.md`](docs/phase-1-final-evaluation.md): rubrica y limites.
 - [`docs/phase-2-api-evidence.md`](docs/phase-2-api-evidence.md): evidencia incremental del
   contrato HTTP y su recuperacion; no es aun la evaluacion final de la Fase 2.
+- [`docs/phase-2-container-evidence.md`](docs/phase-2-container-evidence.md): evidencia de
+  construccion, aislamiento, migracion, smoke test y apagado.
 
 ## Estructura
 
@@ -148,6 +172,7 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 ├── src/fde_foundation/        # Codigo Python instalable
 ├── tests/                     # Pruebas automatizadas
 ├── compose.yaml               # PostgreSQL local reproducible
+├── Dockerfile                 # Imagen multi-stage no-root
 ├── .env.example               # Contrato de configuracion sin secretos
 ├── .gitignore                 # Proteccion de archivos locales
 ├── pyproject.toml             # Proyecto, dependencias y herramientas
@@ -176,3 +201,4 @@ un artefacto que otra persona pueda inspeccionar.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.
 - La API local usa un secreto compartido; un entorno real requiere identidad externa, TLS,
   rate limiting y reconciliacion en segundo plano cuando ningun llamador reintenta.
+- La imagen aun no se publica en un registry ni incluye SBOM, firma o escaneo continuo.

@@ -13,7 +13,28 @@ reporte JSON asociado al `operation_id`.
 3. Ejecutar `fde-diagnose` para separar un fallo del entorno de uno del archivo.
 4. No pedir al usuario que envie emails, telefonos, contrasenas ni el archivo por logs.
 
+En Docker, comprobar ademas los estados de `database`, `api_migrate` y `api`. No ejecutar
+`docker inspect` sin formato en un ticket porque puede mostrar variables de entorno.
+
 ## Matriz de respuesta
+
+### `api_migrate` termina distinto de cero
+
+- La API debe permanecer sin iniciar. No omitir la dependencia ni marcar la migracion a mano.
+- Revisar conectividad, credencial de migracion y error Alembic en un canal autorizado.
+- Corregir la causa y volver a ejecutar el trabajo; debe ser idempotente.
+
+### Contenedor API `unhealthy`
+
+- Consultar por separado `/health/live` y `/health/ready` desde la red autorizada.
+- Si live responde y ready falla, revisar PostgreSQL y revision antes de aceptar trafico.
+- No reiniciar en bucle para ocultar una migracion o configuracion incorrecta.
+
+### Apagado supera 15 segundos
+
+- Compose enviara la terminacion forzada al vencer el periodo de gracia.
+- Conservar hora, estado, `operation_id` activos y eventos seguros; no copiar headers.
+- El mismo archivo y clave pueden recuperar una operacion interrumpida segun el lease.
 
 ### API `401` o `403`
 

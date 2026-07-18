@@ -19,6 +19,85 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  api_migrate:
+    profiles: ["api"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment:
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?define migration database URL}
+    depends_on:
+      database:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    profiles: ["api"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: ${CONTAINER_DATABASE_URL:?define container database URL}
+      JWT_SECRET: ${JWT_SECRET:?define JWT signing secret}
+      IDENTIFIER_HASH_KEY: ${IDENTIFIER_HASH_KEY:?define identifier hash key}
+      JWT_ISSUER: ${JWT_ISSUER:?define JWT issuer}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?define JWT audience}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    depends_on:
+      database:
+        condition: service_healthy
+      api_migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${API_PUBLIC_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 15s
+
+  api_smoke:
+    profiles: ["smoke"]
+    image: customer-data-foundation-api:${API_IMAGE_TAG:-local}
+    command: ["python", "/smoke/container_smoke.py"]
+    environment:
+      API_BASE_URL: http://api:8000
+      OPERATOR_TOKEN: ${OPERATOR_TOKEN:-not-set}
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./scripts/container_smoke.py:/smoke/container_smoke.py:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 0.5
+
   database_test:
     profiles: ["test"]
     image: postgres:18.4-alpine
