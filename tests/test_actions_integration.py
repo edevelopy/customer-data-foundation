@@ -36,7 +36,9 @@ JWT_AUDIENCE = "fde-actions-test"
 
 @pytest.fixture
 def database_url() -> str:
-    url = os.environ.get("PHASE4_TEST_DATABASE_URL", DATABASE_URL)
+    url = os.environ.get(
+        "PHASE4_TEST_DATABASE_URL", os.environ.get("TEST_DATABASE_URL", DATABASE_URL)
+    )
     upgrade_database(url)
     with psycopg.connect(url) as connection:
         connection.execute("TRUNCATE action_audit_events, action_requests CASCADE")
