@@ -53,7 +53,14 @@ from fde_foundation.integration_store import OutboxEvent, get_event_for_operatio
 from fde_foundation.knowledge import DocumentRecord, RetrievalHit, ingest_document, retrieve_chunks
 from fde_foundation.observability import build_ai_event, build_import_event, emit_json_event
 from fde_foundation.openai_provider import OpenAIQueryPlanner
+from fde_foundation.openai_rag_provider import OpenAIGroundedAnswerGenerator
 from fde_foundation.operations import METRIC_CONTENT_TYPE, collect_snapshot, render_prometheus
+from fde_foundation.rag import (
+    AnswerGenerator,
+    AnswerResult,
+    DeterministicGroundedGenerator,
+    answer_question,
+)
 from fde_foundation.settings import AISettings, ConfigurationError, Settings
 from fde_foundation.validation import MAX_FILE_BYTES
 
@@ -135,11 +142,18 @@ class RetrievalHitResponse(BaseModel):
     score: float
     lexical_rank: int | None
     semantic_rank: int | None
+    lexical_score: float | None
+    semantic_similarity: float | None
 
 
 class RetrievalResponse(BaseModel):
     mode: str
     hits: list[RetrievalHitResponse]
+
+
+class AnswerRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    metadata_filter: dict[str, str] = Field(default_factory=dict)
 
 
 def public_operation(operation: StoredOperation) -> OperationResponse:
@@ -300,6 +314,35 @@ def knowledge_embedding_provider() -> EmbeddingProvider:
             "embedding_not_configured",
             "Knowledge retrieval is not configured.",
         ) from error
+
+
+def grounded_answer_generator() -> AnswerGenerator:
+    app_env = os.environ.get("APP_ENV", "production").strip().casefold()
+    provider_name = os.environ.get(
+        "ANSWER_PROVIDER", "deterministic_local" if app_env in {"development", "test"} else "openai"
+    ).strip()
+    if provider_name == "deterministic_local":
+        if app_env not in {"development", "test"}:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "answer_provider_not_allowed",
+                "Answer service is not configured.",
+            )
+        return DeterministicGroundedGenerator()
+    if provider_name == "openai":
+        try:
+            return OpenAIGroundedAnswerGenerator(AISettings.from_environment())
+        except ConfigurationError as error:
+            raise safe_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "answer_provider_not_configured",
+                "Answer service is not configured.",
+            ) from error
+    raise safe_error(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "answer_provider_not_configured",
+        "Answer service is not configured.",
+    )
 
 
 def public_document(record: DocumentRecord) -> DocumentResponse:
@@ -486,6 +529,50 @@ async def retrieve_knowledge(
             "Knowledge store is temporarily unavailable.",
         ) from error
     return RetrievalResponse(mode=request.mode, hits=[public_hit(hit) for hit in hits])
+
+
+@app.post(
+    "/v1/assistant/answers",
+    response_model=AnswerResult,
+    responses={401: {}, 422: {}, 503: {}},
+    tags=["assistant"],
+)
+async def create_grounded_answer(
+    request: AnswerRequest,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    embedding_provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+    answer_generator: Annotated[AnswerGenerator, Depends(grounded_answer_generator)],
+) -> AnswerResult:
+    try:
+        return await run_in_threadpool(
+            answer_question,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            question=request.question,
+            metadata_filter=request.metadata_filter,
+            embedding_provider=embedding_provider,
+            answer_generator=answer_generator,
+        )
+    except (ValueError, EmbeddingProviderError) as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_answer_request",
+            "The question could not be processed.",
+        ) from error
+    except AIProviderUnavailableError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "answer_provider_unavailable",
+            "Answer service is temporarily unavailable.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
 
 
 @app.post(

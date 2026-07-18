@@ -135,6 +135,16 @@ adaptador no es IA. Produccion requiere OpenAI. El modelo de datos, seguridad y 
 [`contrato de recuperacion`](docs/knowledge-retrieval-contract.md), y la validacion observada en la
 [`evidencia del Incremento 2`](docs/phase-4-increment-2-evidence.md).
 
+## Responder con evidencia
+
+`POST /v1/assistant/answers` recupera solo fragmentos permitidos, aplica un umbral de evidencia y
+verifica que todas las citas generadas pertenezcan a esos fragmentos. Sin soporte devuelve
+`status=refused`; una cita inventada nunca se publica.
+
+En desarrollo existe un extractor determinista para probar el flujo sin costo; no es IA. Produccion
+usa el adaptador Responses API y requiere OpenAI. Consulta el [`contrato RAG`](docs/rag-contract.md)
+y la [`evidencia del Incremento 3`](docs/phase-4-increment-3-evidence.md).
+
 ## Ejecutar el stack Docker
 
 La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:

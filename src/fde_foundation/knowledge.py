@@ -23,6 +23,38 @@ INJECTION_PATTERN = re.compile(
     r"(?:ignore|disregard|reveal|override).{0,40}(?:instruction|prompt|system|secret)",
     re.IGNORECASE,
 )
+LEXICAL_STOPWORDS = frozenset(
+    {
+        "and",
+        "are",
+        "como",
+        "cual",
+        "cuales",
+        "del",
+        "desde",
+        "donde",
+        "el",
+        "ella",
+        "en",
+        "es",
+        "esta",
+        "for",
+        "how",
+        "is",
+        "la",
+        "las",
+        "los",
+        "para",
+        "por",
+        "que",
+        "the",
+        "una",
+        "what",
+        "when",
+        "where",
+        "with",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +82,8 @@ class RetrievalHit:
     score: float
     lexical_rank: int | None
     semantic_rank: int | None
+    lexical_score: float | None
+    semantic_similarity: float | None
 
 
 def chunk_text(content: str) -> list[str]:
@@ -75,6 +109,16 @@ def chunk_text(content: str) -> list[str]:
 
 def token_estimate(content: str) -> int:
     return max(1, (len(content) + 3) // 4)
+
+
+def lexical_query(content: str) -> str:
+    """Build a bounded OR query from words only; never pass user operators to to_tsquery."""
+    terms = [
+        term
+        for term in dict.fromkeys(re.findall(r"[\w]{2,40}", content.casefold(), re.UNICODE))
+        if term not in LEXICAL_STOPWORDS
+    ][:30]
+    return " | ".join(terms)
 
 
 def ingest_document(
@@ -223,6 +267,7 @@ def retrieve_chunks(
         raise ValueError("Query and limit are invalid.")
     actor_hash = protected_hash(identifier_hash_key, "knowledge-principal", actor_subject)
     query_vector = vector_literal(embedding_provider.embed([query])[0])
+    lexical_query_value = lexical_query(query)
     metadata_filter = metadata_filter or {}
     common_params: tuple[Any, ...] = (actor_hash, Jsonb(metadata_filter))
     base_select = """
@@ -237,32 +282,49 @@ def retrieve_chunks(
     semantic_rows: list[dict[str, Any]] = []
     with psycopg.connect(database_url, row_factory=dict_row) as connection:
         require_current_schema(connection)
-        if mode in {"lexical", "hybrid"}:
+        if mode in {"lexical", "hybrid"} and lexical_query_value:
             lexical_rows = connection.execute(
-                base_select
+                base_select.replace(
+                    "c.content, c.metadata",
+                    "c.content, c.metadata, "
+                    "ts_rank_cd(c.search_vector, to_tsquery('simple', %s)) "
+                    "AS lexical_score",
+                )
                 + """
-                  AND c.search_vector @@ plainto_tsquery('simple', %s)
-                ORDER BY ts_rank_cd(c.search_vector, plainto_tsquery('simple', %s)) DESC,
+                  AND c.search_vector @@ to_tsquery('simple', %s)
+                ORDER BY ts_rank_cd(c.search_vector, to_tsquery('simple', %s)) DESC,
                          c.chunk_id
                 LIMIT %s
                 """,
-                (*common_params, query, query, max(limit, 20)),
+                (
+                    lexical_query_value,
+                    *common_params,
+                    lexical_query_value,
+                    lexical_query_value,
+                    max(limit, 20),
+                ),
             ).fetchall()
         if mode in {"semantic", "hybrid"}:
             semantic_rows = connection.execute(
-                base_select
+                base_select.replace(
+                    "c.content, c.metadata",
+                    "c.content, c.metadata, "
+                    "1 - (c.embedding <=> %s::vector) AS semantic_similarity",
+                )
                 + """
                 ORDER BY c.embedding <=> %s::vector, c.chunk_id
                 LIMIT %s
                 """,
-                (*common_params, query_vector, max(limit, 20)),
+                (query_vector, *common_params, query_vector, max(limit, 20)),
             ).fetchall()
 
     combined: dict[uuid.UUID, dict[str, Any]] = {}
     for rank, row in enumerate(lexical_rows, start=1):
         combined.setdefault(row["chunk_id"], dict(row))["lexical_rank"] = rank
     for rank, row in enumerate(semantic_rows, start=1):
-        combined.setdefault(row["chunk_id"], dict(row))["semantic_rank"] = rank
+        target = combined.setdefault(row["chunk_id"], dict(row))
+        target["semantic_rank"] = rank
+        target["semantic_similarity"] = row["semantic_similarity"]
     hits: list[RetrievalHit] = []
     for row in combined.values():
         lexical_rank = row.get("lexical_rank")
@@ -282,6 +344,14 @@ def retrieve_chunks(
                 score=score,
                 lexical_rank=lexical_rank,
                 semantic_rank=semantic_rank,
+                lexical_score=(
+                    float(row["lexical_score"]) if row.get("lexical_score") is not None else None
+                ),
+                semantic_similarity=(
+                    float(row["semantic_similarity"])
+                    if row.get("semantic_similarity") is not None
+                    else None
+                ),
             )
         )
     hits.sort(key=lambda hit: (-hit.score, str(hit.chunk_id)))

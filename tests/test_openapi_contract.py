@@ -18,6 +18,7 @@ def test_versioned_openapi_matches_runtime_contract() -> None:
         "/health/live",
         "/health/ready",
         "/v1/assistant/query-plans",
+        "/v1/assistant/answers",
         "/v1/imports",
         "/v1/imports/{operation_id}",
         "/v1/integrations/{operation_id}",

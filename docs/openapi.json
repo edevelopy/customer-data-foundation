@@ -68,6 +68,63 @@
         "title": "AITrace",
         "type": "object"
       },
+      "AnswerRequest": {
+        "properties": {
+          "metadata_filter": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata Filter",
+            "type": "object"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AnswerRequest",
+        "type": "object"
+      },
+      "AnswerResult": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "refused",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/RAGTrace"
+          }
+        },
+        "required": [
+          "status",
+          "answer",
+          "citations",
+          "trace"
+        ],
+        "title": "AnswerResult",
+        "type": "object"
+      },
       "Body_create_import_v1_imports_post": {
         "properties": {
           "file": {
@@ -81,6 +138,41 @@
           "file"
         ],
         "title": "Body_create_import_v1_imports_post",
+        "type": "object"
+      },
+      "Citation": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "chunk_index": {
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "source_uri",
+          "title",
+          "chunk_index"
+        ],
+        "title": "Citation",
         "type": "object"
       },
       "DocumentIngestRequest": {
@@ -461,6 +553,86 @@
         "title": "QueryPlanResult",
         "type": "object"
       },
+      "RAGTrace": {
+        "properties": {
+          "cached": {
+            "default": false,
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "citation_count": {
+            "minimum": 0.0,
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "prompt_version": {
+            "default": "1.0.0",
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "retrieved_count": {
+            "minimum": 0.0,
+            "title": "Retrieved Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "refused",
+              "degraded",
+              "provider_unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "request_id",
+          "status",
+          "provider",
+          "model",
+          "duration_ms",
+          "usage",
+          "estimated_cost_usd",
+          "retrieved_count",
+          "citation_count"
+        ],
+        "title": "RAGTrace",
+        "type": "object"
+      },
       "RetrievalHitResponse": {
         "properties": {
           "chunk_id": {
@@ -492,6 +664,17 @@
             ],
             "title": "Lexical Rank"
           },
+          "lexical_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexical Score"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -512,6 +695,17 @@
             ],
             "title": "Semantic Rank"
           },
+          "semantic_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Similarity"
+          },
           "source_uri": {
             "title": "Source Uri",
             "type": "string"
@@ -531,7 +725,9 @@
           "metadata",
           "score",
           "lexical_rank",
-          "semantic_rank"
+          "semantic_rank",
+          "lexical_score",
+          "semantic_similarity"
         ],
         "title": "RetrievalHitResponse",
         "type": "object"
@@ -736,6 +932,51 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/assistant/answers": {
+      "post": {
+        "operationId": "create_grounded_answer_v1_assistant_answers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Grounded Answer",
+        "tags": [
+          "assistant"
         ]
       }
     },
