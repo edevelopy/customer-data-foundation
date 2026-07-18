@@ -33,6 +33,20 @@ El incremento se acepta cuando:
 - `coverage.xml` y `test-results.xml`: generados correctamente y excluidos de Git.
 - Actionlint y configuracion Compose: aprobados.
 
+## Evidencia remota observada
+
+- Commit: `dbcaedc10a714c2c1f3f28b6aa40fb06b32c46dc`.
+- Pipeline: [CI 29638963217](https://github.com/edevelopy/customer-data-foundation/actions/runs/29638963217).
+- Jobs `quality`, `container`, `image_changes` y `publish`: aprobados.
+- Artifact `quality-evidence-dbcaedc10a714c2c1f3f28b6aa40fb06b32c46dc`: descargado y
+  parseado correctamente.
+- JUnit remoto: 54 pruebas, cero fallos y cero errores.
+- Coverage XML remoto: 78.12% de lineas y 64.89% de ramas; cobertura combinada de pytest
+  76.15%, por encima del gate 75%.
+- Imagen publicada:
+  `ghcr.io/edevelopy/customer-data-foundation-api@sha256:14326b923d71049cea75fc4c942780e092512b4a45c540f85f0f6f229ac2b245`.
+- SBOM SHA-256: `54084510f3b212c70a7e74819354fbc4c5a2a5cf0df356e790c69c66cc4eca6e`.
+
 ## Limites
 
 El porcentaje global no demuestra por si solo que cada riesgo este cubierto; las pruebas de
