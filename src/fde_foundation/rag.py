@@ -17,11 +17,16 @@ from fde_foundation.ai import AIProviderUnavailableError, AIRefusalError, TokenU
 from fde_foundation.api_store import protected_hash
 from fde_foundation.database import require_current_schema
 from fde_foundation.embeddings import EmbeddingProvider
-from fde_foundation.knowledge import RetrievalHit, retrieve_chunks
+from fde_foundation.knowledge import (
+    INJECTION_PATTERN,
+    LEXICAL_STOPWORDS,
+    RetrievalHit,
+    retrieve_chunks,
+)
 
 RAG_PROMPT_ID = "grounded_enterprise_answer"
 RAG_PROMPT_VERSION = "1.0.0"
-MIN_SEMANTIC_SIMILARITY = 0.20
+MIN_SEMANTIC_SIMILARITY = 0.35
 SAFE_REFUSAL = "No encontre evidencia autorizada suficiente para responder esa pregunta."
 
 
@@ -90,10 +95,33 @@ class DeterministicGroundedGenerator:
     def generate(
         self, question: str, evidence: list[RetrievalHit], *, request_id: str
     ) -> GeneratedAnswer:
-        del question
         started_at = time.monotonic()
         hit = evidence[0]
-        sentence = re.split(r"(?<=[.!?])\s+", hit.content.strip(), maxsplit=1)[0]
+        sentences = re.split(r"(?<=[.!?])\s+", hit.content.strip())
+        code_terms = {
+            term.casefold()
+            for code in re.findall(r"\b[A-Z][A-Z0-9]+-[A-Z0-9-]+\b", question)
+            for term in code.split("-")
+        }
+        question_terms = {
+            term
+            for term in re.findall(r"[\w]{2,40}", question.casefold(), re.UNICODE)
+            if term not in LEXICAL_STOPWORDS and term not in code_terms
+        }
+        safe_sentences = [
+            sentence for sentence in sentences if not INJECTION_PATTERN.search(sentence)
+        ]
+        ranked = sorted(
+            safe_sentences,
+            key=lambda candidate: sum(term in candidate.casefold() for term in question_terms),
+            reverse=True,
+        )
+        relevant = [
+            sentence
+            for sentence in ranked
+            if sum(term in sentence.casefold() for term in question_terms) > 0
+        ][:2]
+        sentence = " ".join(relevant or ranked[:1])
         draft = GroundedDraft(
             answer=sentence[:3000],
             supported=True,
@@ -210,7 +238,15 @@ def answer_question(
         limit=8,
         metadata_filter=metadata_filter,
     )
-    evidence = [hit for hit in hits if evidence_is_sufficient(hit)]
+    evidence = sorted(
+        (hit for hit in hits if evidence_is_sufficient(hit)),
+        key=lambda hit: (
+            -(hit.lexical_score or 0.0),
+            -(hit.semantic_similarity or -1.0),
+            -hit.score,
+            str(hit.chunk_id),
+        ),
+    )
     if not evidence:
         trace = _refusal_trace(
             request_id=request_id,

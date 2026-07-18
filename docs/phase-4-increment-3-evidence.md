@@ -54,7 +54,7 @@ Cobertura total: 78.19%
 - No hubo llamada real a OpenAI por ausencia de credencial; no se inventaron respuesta, tokens ni
   costo del proveedor.
 - El caso local prueba controles y contratos, no la calidad de `gpt-5.6-sol`.
-- El umbral `0.20` es inicial. Su comportamiento cuantitativo se medira en el siguiente incremento.
+- El umbral `0.35` es inicial. Su comportamiento cuantitativo se medira en el siguiente incremento.
 - Cache, presupuesto, rate limit y degradacion controlada llegan en el Incremento 5.
 
 ## Que sigue

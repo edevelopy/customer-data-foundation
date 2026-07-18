@@ -25,7 +25,7 @@ flowchart LR
 
 - El sujeto se obtiene del JWT; el cuerpo no puede elegir otra identidad.
 - PostgreSQL aplica permisos antes de producir candidatos.
-- El umbral acepta coincidencia lexical positiva o similitud coseno minima de `0.20`.
+- El umbral acepta coincidencia lexical positiva o similitud coseno minima de `0.35`.
 - Todo `chunk_id` citado debe existir en el conjunto autorizado enviado al generador.
 - Una salida sin soporte, sin citas o con una cita inventada se reemplaza por rechazo seguro.
 - La cita publica identifica la fuente pero no repite el contenido del fragmento.

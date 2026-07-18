@@ -38,7 +38,8 @@ Despues se realizara una evaluacion final de la Fase 4 con evidencia desde un cl
 - Incremento 2: aprobado localmente; documentos versionados, pgvector, permisos y recuperacion
   hibrida.
 - Incremento 3: aprobado localmente; respuestas fundamentadas, citas y rechazo seguro.
-- Incremento 4: en construccion; evaluacion reproducible de al menos 30 casos.
+- Incremento 4: aprobado localmente; 38 casos versionados y seis puertas reproducibles.
+- Incremento 5: en construccion; agente controlado, aprobacion humana y controles de costo.
 
 La ausencia de una credencial de OpenAI se registra como limite: los adaptadores reales existen,
 pero las pruebas locales deterministas no se presentan como llamadas ni calidad real del proveedor.

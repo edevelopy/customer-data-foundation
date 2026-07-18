@@ -145,6 +145,22 @@ En desarrollo existe un extractor determinista para probar el flujo sin costo; n
 usa el adaptador Responses API y requiere OpenAI. Consulta el [`contrato RAG`](docs/rag-contract.md)
 y la [`evidencia del Incremento 3`](docs/phase-4-increment-3-evidence.md).
 
+## Evaluar el asistente
+
+`fde-rag-eval` ejecuta 38 casos versionados contra una linea base lexical y el flujo RAG completo.
+Mide recall, precision, exactitud, groundedness, rechazo, permisos, latencia, tokens y costo; falla si
+una puerta no se cumple.
+
+```bash
+APP_ENV=test uv run fde-rag-eval \
+  --json-output docs/evals/phase4-results.json \
+  --markdown-output docs/evals/phase4-results.md
+```
+
+El [`contrato de evaluacion`](docs/evaluation-contract.md) define las formulas y limites. El
+[`resultado versionado`](docs/evals/phase4-results.md) usa un adaptador local que no es IA; no
+representa calidad ni costo vivo de OpenAI.
+
 ## Ejecutar el stack Docker
 
 La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:
