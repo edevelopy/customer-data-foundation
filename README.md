@@ -161,6 +161,17 @@ El [`contrato de evaluacion`](docs/evaluation-contract.md) define las formulas y
 [`resultado versionado`](docs/evals/phase4-results.md) usa un adaptador local que no es IA; no
 representa calidad ni costo vivo de OpenAI.
 
+## Proponer una accion con aprobacion humana
+
+El ultimo incremento permite que un operador proponga `send_customer_followup`, pero la solicitud
+queda `pending`. Un auditor diferente debe aprobar los argumentos exactos antes de que un operador
+pueda ejecutar la simulacion. No existe un conector real de correo o CRM.
+
+Los endpoints de propuesta, aprobacion, ejecucion y lectura estan en OpenAPI. El
+[`contrato del agente`](docs/controlled-agent-contract.md) explica roles, auditoria, rate limit,
+presupuesto, cache y degradacion; la [`evidencia del Incremento 5`](docs/phase-4-increment-5-evidence.md)
+registra las pruebas observadas.
+
 ## Ejecutar el stack Docker
 
 La imagen endurecida, la migracion de una sola ejecucion y la API se coordinan con Compose:

@@ -52,9 +52,9 @@ Fuentes oficiales aplicadas:
 modelo, version del prompt, latencia, tokens, costo opcional y conteos. No tiene columnas para
 pregunta, respuesta, sujeto original o contenido documental.
 
-La tabla `rag_cache` queda preparada para el control de costo del Incremento 5. Cualquier entrada
-estara separada por hash de sujeto y tendra vencimiento; este incremento no afirma que el cache ya
-este activo.
+`rag_cache` esta activo cuando `RAG_CACHE_TTL_SECONDS` es mayor que cero. Cada entrada se separa por
+hash de sujeto y configuracion, vence por TTL y revalida permisos y vigencia de las citas antes de
+responder. Las respuestas cacheadas tambien generan una traza, marcada `cached=true` y costo cero.
 
 ## Adaptador determinista
 
@@ -65,7 +65,8 @@ es un LLM ni demuestra calidad generativa.
 ## Fallos y limites
 
 - Sin evidencia: HTTP 200 con `status=refused`; esto es un resultado empresarial esperado.
-- Proveedor inaccesible: HTTP 503 y traza `provider_unavailable`.
+- Proveedor inaccesible: fallback extractivo `degraded` cuando esta habilitado; en caso contrario,
+  HTTP 503 y traza `provider_unavailable`.
 - Almacen o embeddings inaccesibles: HTTP 503 sin detalles internos.
 - No hubo llamada viva a OpenAI en este incremento porque la sesion no dispone de credencial.
 - El umbral inicial se valida con datos sinteticos en el Incremento 4; un cliente debe recalibrarlo

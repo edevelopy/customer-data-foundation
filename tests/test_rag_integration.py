@@ -13,7 +13,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from fde_foundation.ai import TokenUsage
+from fde_foundation.ai import AIProviderUnavailableError, TokenUsage
 from fde_foundation.api import app
 from fde_foundation.database import upgrade_database
 from fde_foundation.embeddings import DeterministicEmbeddingProvider
@@ -21,6 +21,8 @@ from fde_foundation.knowledge import RetrievalHit, ingest_document
 from fde_foundation.openai_rag_provider import OpenAIGroundedAnswerGenerator
 from fde_foundation.rag import (
     SAFE_REFUSAL,
+    AIDailyBudgetError,
+    AIRequestLimitError,
     DeterministicGroundedGenerator,
     GeneratedAnswer,
     GroundedDraft,
@@ -149,6 +151,24 @@ class InvalidCitationGenerator:
         )
 
 
+class CountingGenerator(DeterministicGroundedGenerator):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self, question, evidence, *, request_id: str) -> GeneratedAnswer:
+        self.calls += 1
+        return super().generate(question, evidence, request_id=request_id)
+
+
+class UnavailableGenerator:
+    name = "unavailable_stub"
+    model = "unavailable"
+
+    def generate(self, _question, _evidence, *, request_id: str) -> GeneratedAnswer:
+        del request_id
+        raise AIProviderUnavailableError
+
+
 @pytest.mark.integration
 def test_rag_fails_closed_when_provider_invents_a_citation(database_url: str) -> None:
     ingest(
@@ -170,6 +190,89 @@ def test_rag_fails_closed_when_provider_invents_a_citation(database_url: str) ->
     assert result.status == "refused"
     assert result.answer == SAFE_REFUSAL
     assert result.citations == []
+
+
+@pytest.mark.integration
+def test_rag_cache_is_scoped_and_revalidates_permission(database_url: str) -> None:
+    ingest(
+        database_url,
+        readers=["alice"],
+        content="Refund requests are accepted within thirty days when a receipt is available.",
+    )
+    generator = CountingGenerator()
+    arguments = {
+        "database_url": database_url,
+        "identifier_hash_key": HASH_KEY,
+        "actor_subject": "alice",
+        "question": "What is the refund period?",
+        "metadata_filter": {},
+        "embedding_provider": DeterministicEmbeddingProvider(),
+        "answer_generator": generator,
+        "cache_ttl_seconds": 300,
+    }
+
+    first = answer_question(**arguments)  # type: ignore[arg-type]
+    cached = answer_question(**arguments)  # type: ignore[arg-type]
+    with psycopg.connect(database_url) as connection:
+        connection.execute(
+            """
+            DELETE FROM knowledge_document_permissions
+            WHERE principal_hash <> (
+                SELECT created_by_hash FROM knowledge_documents WHERE active LIMIT 1
+            )
+            """
+        )
+    after_revocation = answer_question(**arguments)  # type: ignore[arg-type]
+
+    assert first.status == "answered"
+    assert cached.trace.cached is True
+    assert generator.calls == 1
+    assert after_revocation.status == "refused"
+    assert after_revocation.citations == []
+
+
+@pytest.mark.integration
+def test_rag_rate_budget_and_degraded_fallback_are_controlled(database_url: str) -> None:
+    ingest(
+        database_url,
+        readers=["alice"],
+        content="Refund requests are accepted within thirty days when a receipt is available.",
+    )
+    base = {
+        "database_url": database_url,
+        "identifier_hash_key": HASH_KEY,
+        "actor_subject": "alice",
+        "metadata_filter": {},
+        "embedding_provider": DeterministicEmbeddingProvider(),
+    }
+    degraded = answer_question(
+        **base,  # type: ignore[arg-type]
+        question="What is the refund period?",
+        answer_generator=UnavailableGenerator(),
+        allow_degraded=True,
+    )
+    with pytest.raises(AIRequestLimitError):
+        answer_question(
+            **base,  # type: ignore[arg-type]
+            question="What is the refund period?",
+            answer_generator=DeterministicGroundedGenerator(),
+            requests_per_minute=1,
+        )
+    with psycopg.connect(database_url) as connection:
+        connection.execute(
+            "UPDATE rag_traces SET input_tokens = 10 WHERE request_id = %s",
+            (degraded.trace.request_id,),
+        )
+    with pytest.raises(AIDailyBudgetError):
+        answer_question(
+            **base,  # type: ignore[arg-type]
+            question="What is the refund window?",
+            answer_generator=DeterministicGroundedGenerator(),
+            daily_token_budget=10,
+        )
+
+    assert degraded.status == "degraded"
+    assert degraded.citations[0].source_uri == "kb://refund-policy"
 
 
 @pytest.mark.integration

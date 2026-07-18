@@ -68,6 +68,143 @@
         "title": "AITrace",
         "type": "object"
       },
+      "ActionArguments": {
+        "additionalProperties": false,
+        "properties": {
+          "customer_reference": {
+            "pattern": "^CUST-[A-Z0-9]{3,32}$",
+            "title": "Customer Reference",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "status_update",
+              "information_requested",
+              "case_resolved"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "template": {
+            "enum": [
+              "case_update",
+              "information_request",
+              "resolution_notice"
+            ],
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_reference",
+          "template",
+          "reason"
+        ],
+        "title": "ActionArguments",
+        "type": "object"
+      },
+      "ActionPlanRequest": {
+        "properties": {
+          "instruction": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "ActionPlanRequest",
+        "type": "object"
+      },
+      "ActionResponse": {
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_type": {
+            "title": "Action Type",
+            "type": "string"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "arguments": {
+            "$ref": "#/components/schemas/ActionArguments"
+          },
+          "arguments_sha256": {
+            "title": "Arguments Sha256",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "planner_model": {
+            "title": "Planner Model",
+            "type": "string"
+          },
+          "planner_provider": {
+            "title": "Planner Provider",
+            "type": "string"
+          },
+          "result_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Code"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "action_type",
+          "arguments",
+          "arguments_sha256",
+          "status",
+          "planner_provider",
+          "planner_model",
+          "result_code",
+          "created_at",
+          "approved_at",
+          "executed_at"
+        ],
+        "title": "ActionResponse",
+        "type": "object"
+      },
       "AnswerRequest": {
         "properties": {
           "metadata_filter": {
@@ -932,6 +1069,241 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}": {
+      "get": {
+        "operationId": "read_controlled_action_v1_actions__action_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}/approve": {
+      "post": {
+        "operationId": "approve_controlled_action_v1_actions__action_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Approve Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/actions/{action_id}/execute": {
+      "post": {
+        "operationId": "execute_controlled_action_v1_actions__action_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Execute Controlled Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/v1/assistant/action-plans": {
+      "post": {
+        "operationId": "create_controlled_action_v1_assistant_action_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create Controlled Action",
+        "tags": [
+          "assistant",
+          "actions"
         ]
       }
     },

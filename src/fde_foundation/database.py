@@ -10,7 +10,7 @@ import psycopg
 from alembic import command
 from alembic.config import Config
 
-CURRENT_SCHEMA_REVISION: Final = "0006_rag_traces"
+CURRENT_SCHEMA_REVISION: Final = "0007_controlled_actions"
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[2]
 CONNECT_TIMEOUT_SECONDS: Final = 5
 POSTGRES_OPERATION_LIMITS: Final = "-c statement_timeout=10000 -c lock_timeout=3000"
