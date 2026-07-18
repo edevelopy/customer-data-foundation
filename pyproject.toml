@@ -9,6 +9,7 @@ description = "Plantilla reproducible para la Fase 0 de la ruta FDE"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18,<2",
     "psycopg[binary]>=3.2,<4",
 ]
 

@@ -47,7 +47,7 @@ ya disponible localmente y CI queda como verificacion independiente de descarga.
 
 ## Riesgos y trabajo pendiente
 
-- El esquema inicial usa `CREATE TABLE IF NOT EXISTS`; falta una herramienta versionada de migraciones.
+- La falta de migraciones se resolvio en el incremento operativo con Alembic.
 - El email continua siendo una identidad provisional del piloto.
 - Los intentos invalidados o revertidos solo producen un reporte y no se guardan como auditoria.
 - Aun faltan metricas operativas, logs estructurados y la demo final de la Fase 1.

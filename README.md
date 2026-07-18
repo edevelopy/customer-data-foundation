@@ -64,6 +64,7 @@ docker compose up -d --wait database
 set -a
 source .env
 set +a
+uv run alembic upgrade head
 uv run fde-import examples/customers-valid.csv --report validation-report.json
 ```
 
@@ -71,6 +72,10 @@ Repetir el ultimo comando devuelve `status=already_imported` sin crear duplicado
 cliente existente con datos diferentes genera `status=conflict` y revierte todo el lote.
 El modelo y el limite transaccional estan documentados en
 [`docs/database-design.md`](docs/database-design.md).
+
+Cada importacion emite una sola linea JSON con identificador de operacion, estado,
+duracion, conteos y codigos de error. No incluye nombres, emails, telefonos, rutas,
+contenido del archivo ni configuracion de la base de datos.
 
 Existe un lote reproducible para demostrar el conflicto:
 
@@ -87,12 +92,27 @@ docker compose down
 ## Calidad y pruebas
 
 ```bash
+set -a
+source .env
+set +a
+docker compose --profile test up -d --wait database_test
 uv run ruff format --check .
 uv run ruff check .
-TEST_DATABASE_URL="$DATABASE_URL" uv run pytest
+uv run pytest
 ```
 
+Usa la URL de pruebas, nunca `DATABASE_URL`, al ejecutar Pytest. `database_test` utiliza
+almacenamiento efimero y no comparte volumen con la base de desarrollo.
+
 GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
+
+## Operacion y evaluacion
+
+- [`docs/observability-contract.md`](docs/observability-contract.md): campos y metricas seguras.
+- [`docs/runbook.md`](docs/runbook.md): diagnostico, recuperacion y rollback.
+- [`docs/failure-drill-evidence.md`](docs/failure-drill-evidence.md): simulacros observados.
+- [`docs/demo-script.md`](docs/demo-script.md): demo reproducible de cinco minutos.
+- [`docs/phase-1-final-evaluation.md`](docs/phase-1-final-evaluation.md): rubrica y limites.
 
 ## Estructura
 
@@ -101,6 +121,7 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 ├── .github/workflows/ci.yml   # Integracion continua
 ├── docs/problem-brief.md      # Problema, usuario y metrica
 ├── examples/                  # CSV validos e invalidos
+├── migrations/                # Cambios versionados de PostgreSQL
 ├── src/fde_foundation/        # Codigo Python instalable
 ├── tests/                     # Pruebas automatizadas
 ├── compose.yaml               # PostgreSQL local reproducible
@@ -114,8 +135,9 @@ GitHub Actions ejecuta esas mismas comprobaciones en cada `push` y pull request.
 
 El ejecutable `fde-diagnose` llama comprobaciones independientes y produce una salida
 humana o JSON. No lee ni muestra el contenido de `.env`; solo verifica que Git lo ignore.
-La validacion ocurre antes de conectar con PostgreSQL. La reserva del hash del archivo,
-la deteccion de conflictos y las inserciones comparten una unica transaccion.
+La validacion ocurre antes de conectar con PostgreSQL. Una migracion explicita prepara el
+esquema; la reserva del hash, la deteccion de conflictos y las inserciones comparten una
+unica transaccion.
 
 ## Modelo de trabajo AI-native
 
@@ -126,6 +148,6 @@ un artefacto que otra persona pueda inspeccionar.
 
 ## Limitaciones conocidas
 
-- La creacion de tablas es un esquema inicial; todavia no existe una herramienta formal de migraciones.
+- La primera migracion adopta tablas identicas creadas durante el piloto; cambios futuros deben validarlas explicitamente.
 - El email sigue siendo una clave natural provisional para el piloto.
 - El chequeo DNS utiliza `example.com` y puede advertir si se trabaja sin conexion.

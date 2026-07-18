@@ -5,7 +5,8 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from fde_foundation.importer import ensure_schema, import_csv
+from fde_foundation.database import CURRENT_SCHEMA_REVISION, upgrade_database
+from fde_foundation.importer import import_csv
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def database_url() -> str:
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("TEST_DATABASE_URL is required for PostgreSQL integration tests")
-    ensure_schema(url)
+    upgrade_database(url)
     with psycopg.connect(url) as connection:
         connection.execute("TRUNCATE TABLE customers, import_batches RESTART IDENTITY CASCADE;")
     return url
@@ -25,6 +26,33 @@ def write_csv(path: Path, rows: str) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+@pytest.mark.integration
+def test_database_is_at_expected_migration(database_url: str) -> None:
+    with psycopg.connect(database_url) as connection:
+        revision = connection.execute("SELECT version_num FROM alembic_version;").fetchone()
+
+    assert revision == (CURRENT_SCHEMA_REVISION,)
+
+
+@pytest.mark.integration
+def test_import_stops_when_migration_revision_is_missing(tmp_path: Path, database_url: str) -> None:
+    csv_path = write_csv(
+        tmp_path / "customers.csv",
+        "alice@example.com,Alice,Rivera,+14075550101,partner\n",
+    )
+    with psycopg.connect(database_url) as connection:
+        connection.execute("DELETE FROM alembic_version;")
+
+    try:
+        result = import_csv(csv_path, database_url)
+    finally:
+        upgrade_database(database_url)
+
+    assert result.accepted is False
+    assert result.status == "migration_required"
+    assert result.inserted_rows == 0
 
 
 @pytest.mark.integration

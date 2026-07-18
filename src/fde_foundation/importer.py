@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -12,6 +13,8 @@ from typing import Final
 
 import psycopg
 
+from fde_foundation.database import SchemaNotCurrentError, require_current_schema
+from fde_foundation.observability import build_import_event, emit_json_event
 from fde_foundation.validation import (
     ValidatedCustomer,
     ValidationIssue,
@@ -19,34 +22,6 @@ from fde_foundation.validation import (
     validate_csv,
     write_json_report,
 )
-
-SCHEMA_SQL: Final = """
-CREATE TABLE IF NOT EXISTS import_batches (
-    id uuid PRIMARY KEY,
-    file_sha256 char(64) NOT NULL UNIQUE,
-    row_count integer NOT NULL CHECK (row_count >= 0),
-    inserted_count integer NOT NULL CHECK (inserted_count >= 0),
-    existing_count integer NOT NULL CHECK (existing_count >= 0),
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS customers (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    email varchar(254) NOT NULL UNIQUE,
-    first_name varchar(80) NOT NULL,
-    last_name varchar(80) NOT NULL,
-    phone varchar(16) NOT NULL DEFAULT '',
-    source varchar(50) NOT NULL,
-    import_batch_id uuid NOT NULL REFERENCES import_batches(id),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT customers_email_normalized CHECK (email = lower(btrim(email))),
-    CONSTRAINT customers_email_shape CHECK (position('@' IN email) > 1),
-    CONSTRAINT customers_first_name_nonempty CHECK (length(btrim(first_name)) > 0),
-    CONSTRAINT customers_last_name_nonempty CHECK (length(btrim(last_name)) > 0),
-    CONSTRAINT customers_phone_e164 CHECK (phone = '' OR phone ~ '^\\+[1-9][0-9]{7,14}$'),
-    CONSTRAINT customers_source_nonempty CHECK (length(btrim(source)) > 0)
-);
-"""
 
 INSERT_BATCH_SQL: Final = """
 INSERT INTO import_batches (id, file_sha256, row_count, inserted_count, existing_count)
@@ -73,8 +48,10 @@ class ImportResult:
     existing_rows: int
     issues: list[ValidationIssue]
 
-    def to_report(self) -> dict[str, object]:
-        return {
+    def to_report(
+        self, *, operation_id: str | None = None, duration_ms: int | None = None
+    ) -> dict[str, object]:
+        report: dict[str, object] = {
             "accepted": self.accepted,
             "mode": "strict",
             "status": self.status,
@@ -86,6 +63,11 @@ class ImportResult:
             },
             "issues": [asdict(item) for item in self.issues],
         }
+        if operation_id is not None:
+            report["operation_id"] = operation_id
+        if duration_ms is not None:
+            report["duration_ms"] = duration_ms
+        return report
 
 
 class CustomerConflictsError(Exception):
@@ -103,14 +85,6 @@ def database_issue(code: str, message: str, correction: str) -> ValidationIssue:
 def calculate_sha256(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
-
-
-def ensure_schema(database_url: str) -> None:
-    """Crea el esquema inicial en una transaccion independiente."""
-    with psycopg.connect(
-        database_url, connect_timeout=5, application_name="fde-import"
-    ) as connection:
-        connection.execute(SCHEMA_SQL)
 
 
 def customer_values(customer: ValidatedCustomer) -> tuple[str, str, str, str]:
@@ -142,12 +116,12 @@ def import_validated_records(
     """Importa registros ya validados dentro de una sola transaccion."""
     total_rows = len(records)
     try:
-        ensure_schema(database_url)
         with psycopg.connect(
             database_url, connect_timeout=5, application_name="fde-import"
         ) as connection:
             try:
                 with connection.transaction():
+                    require_current_schema(connection)
                     batch_id = uuid.uuid4()
                     inserted_batch = connection.execute(
                         INSERT_BATCH_SQL, (batch_id, file_sha256, total_rows)
@@ -218,6 +192,21 @@ def import_validated_records(
                     )
             except CustomerConflictsError as error:
                 return ImportResult(False, "conflict", total_rows, 0, 0, error.issues)
+    except SchemaNotCurrentError:
+        return ImportResult(
+            False,
+            "migration_required",
+            total_rows,
+            0,
+            0,
+            [
+                database_issue(
+                    "migration_required",
+                    "La base de datos no tiene la revision requerida.",
+                    "Aplica las migraciones antes de importar.",
+                )
+            ],
+        )
     except psycopg.Error:
         return ImportResult(
             False,
@@ -276,20 +265,32 @@ def missing_configuration_result() -> ImportResult:
 
 def main() -> int:
     args = parse_args()
+    operation_id = str(uuid.uuid4())
+    started_at = time.monotonic()
     database_url = os.environ.get("DATABASE_URL")
     result = (
         import_csv(args.csv_file, database_url) if database_url else missing_configuration_result()
     )
+    duration_ms = round((time.monotonic() - started_at) * 1000)
     if args.report:
-        write_json_report(result.to_report(), args.report)
-    print(
-        f"accepted={str(result.accepted).lower()} status={result.status} "
-        f"rows={result.total_rows} inserted={result.inserted_rows} "
-        f"existing={result.existing_rows} errors={len(result.issues)}"
+        write_json_report(
+            result.to_report(operation_id=operation_id, duration_ms=duration_ms), args.report
+        )
+    emit_json_event(
+        build_import_event(
+            operation_id=operation_id,
+            status=result.status,
+            duration_ms=duration_ms,
+            total_rows=result.total_rows,
+            inserted_rows=result.inserted_rows,
+            existing_rows=result.existing_rows,
+            error_codes=(item.code for item in result.issues),
+        )
     )
     if result.accepted:
         return 0
-    return 2 if result.status in {"configuration_error", "database_error"} else 1
+    operational_errors = {"configuration_error", "database_error", "migration_required"}
+    return 2 if result.status in operational_errors else 1
 
 
 if __name__ == "__main__":

@@ -38,10 +38,15 @@ La reserva del hash, la comprobacion de conflictos, la insercion de clientes y l
 actualizacion de contadores ocurren dentro de la misma transaccion. Cualquier conflicto o
 error de PostgreSQL produce rollback; no existe un estado parcialmente importado.
 
+## Migraciones
+
+Alembic administra la revision `0001_customer_imports`. El importador comprueba que la
+base se encuentre exactamente en esa revision y devuelve `migration_required` sin escribir
+si falta. Las migraciones se ejecutan como una operacion separada antes de importar.
+
 ## Seguridad local
 
 - PostgreSQL solo publica el puerto en `127.0.0.1`.
 - La contrasena del contenedor vive en `.env`, excluido de Git.
 - Los valores incluidos en `.env.example` son exclusivamente de desarrollo local.
 - CI utiliza credenciales efimeras sin acceso a ningun ambiente externo.
-
