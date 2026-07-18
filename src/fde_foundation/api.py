@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import psycopg
 import uvicorn
@@ -43,8 +43,14 @@ from fde_foundation.database import (
     SchemaNotCurrentError,
     require_current_schema,
 )
+from fde_foundation.embeddings import (
+    EmbeddingProvider,
+    EmbeddingProviderError,
+    embedding_provider_from_environment,
+)
 from fde_foundation.importer import import_csv
 from fde_foundation.integration_store import OutboxEvent, get_event_for_operation
+from fde_foundation.knowledge import DocumentRecord, RetrievalHit, ingest_document, retrieve_chunks
 from fde_foundation.observability import build_ai_event, build_import_event, emit_json_event
 from fde_foundation.openai_provider import OpenAIQueryPlanner
 from fde_foundation.operations import METRIC_CONTENT_TYPE, collect_snapshot, render_prometheus
@@ -89,6 +95,51 @@ class IntegrationResponse(BaseModel):
 
 class QueryPlanRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
+
+
+class DocumentIngestRequest(BaseModel):
+    source_uri: str = Field(min_length=3, max_length=500)
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=100_000)
+    readers: list[str] = Field(default_factory=list, max_length=100)
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class DocumentResponse(BaseModel):
+    document_id: uuid.UUID
+    source_uri: str
+    title: str
+    version: int
+    chunk_count: int
+    permission_count: int
+    embedding_provider: str
+    embedding_model: str
+    reused: bool
+
+
+class RetrievalRequest(BaseModel):
+    query: str = Field(min_length=3, max_length=2000)
+    mode: Literal["lexical", "semantic", "hybrid"] = "hybrid"
+    limit: int = Field(default=5, ge=1, le=20)
+    metadata_filter: dict[str, str] = Field(default_factory=dict)
+
+
+class RetrievalHitResponse(BaseModel):
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    source_uri: str
+    title: str
+    chunk_index: int
+    content: str
+    metadata: dict[str, object]
+    score: float
+    lexical_rank: int | None
+    semantic_rank: int | None
+
+
+class RetrievalResponse(BaseModel):
+    mode: str
+    hits: list[RetrievalHitResponse]
 
 
 def public_operation(operation: StoredOperation) -> OperationResponse:
@@ -240,6 +291,25 @@ def query_planner() -> QueryPlanner:
     return OpenAIQueryPlanner(settings)
 
 
+def knowledge_embedding_provider() -> EmbeddingProvider:
+    try:
+        return embedding_provider_from_environment()
+    except (ConfigurationError, ValueError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "embedding_not_configured",
+            "Knowledge retrieval is not configured.",
+        ) from error
+
+
+def public_document(record: DocumentRecord) -> DocumentResponse:
+    return DocumentResponse(**record.__dict__)
+
+
+def public_hit(hit: RetrievalHit) -> RetrievalHitResponse:
+    return RetrievalHitResponse(**hit.__dict__)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     _request: Request, _error: RequestValidationError
@@ -331,6 +401,91 @@ async def create_query_plan(
             "ai_provider_unavailable",
             "AI service is temporarily unavailable.",
         ) from error
+
+
+@app.post(
+    "/v1/knowledge/documents",
+    response_model=DocumentResponse,
+    responses={401: {}, 403: {}, 422: {}, 503: {}},
+    tags=["knowledge"],
+)
+async def create_knowledge_document(
+    request: DocumentIngestRequest,
+    principal: Annotated[Principal, Depends(require_operator)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+) -> DocumentResponse:
+    try:
+        record = await run_in_threadpool(
+            ingest_document,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            reader_subjects=request.readers,
+            source_uri=request.source_uri,
+            title=request.title,
+            content=request.content,
+            metadata=request.metadata,
+            embedding_provider=provider,
+        )
+    except ValueError as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_document",
+            "Document could not be ingested.",
+        ) from error
+    except EmbeddingProviderError as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "embedding_provider_unavailable",
+            "Knowledge retrieval is temporarily unavailable.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
+    return public_document(record)
+
+
+@app.post(
+    "/v1/knowledge/retrieval",
+    response_model=RetrievalResponse,
+    responses={401: {}, 422: {}, 503: {}},
+    tags=["knowledge"],
+)
+async def retrieve_knowledge(
+    request: RetrievalRequest,
+    principal: Annotated[Principal, Depends(authenticate)],
+    settings: Annotated[Settings, Depends(api_settings)],
+    provider: Annotated[EmbeddingProvider, Depends(knowledge_embedding_provider)],
+) -> RetrievalResponse:
+    try:
+        hits = await run_in_threadpool(
+            retrieve_chunks,
+            database_url=settings.database_url,
+            identifier_hash_key=settings.identifier_hash_key,
+            actor_subject=principal.subject,
+            query=request.query,
+            embedding_provider=provider,
+            mode=request.mode,
+            limit=request.limit,
+            metadata_filter=request.metadata_filter,
+        )
+    except (ValueError, EmbeddingProviderError) as error:
+        raise safe_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_retrieval",
+            "Knowledge request could not be processed.",
+        ) from error
+    except (psycopg.Error, SchemaNotCurrentError) as error:
+        raise safe_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "knowledge_store_unavailable",
+            "Knowledge store is temporarily unavailable.",
+        ) from error
+    return RetrievalResponse(mode=request.mode, hits=[public_hit(hit) for hit in hits])
 
 
 @app.post(

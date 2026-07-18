@@ -3,8 +3,9 @@
 Proyecto progresivo de la ruta **Forward Deployed Engineer**. La Fase 0 preparo el entorno,
 la Fase 1 entrego el importador transaccional, la Fase 2 lo expuso como una API autenticada e
 integrada, y la Fase 3 entrega release, rollback, metricas, backups y automatizacion reproducible.
-La Fase 4 esta construyendo un asistente empresarial cuya recuperacion y calidad se puedan medir;
-su primer incremento incorpora una frontera LLM estructurada y observable.
+La Fase 4 esta construyendo un asistente empresarial cuya recuperacion y calidad se puedan medir.
+Ya incorpora una frontera LLM estructurada y una base documental con permisos, pgvector y busqueda
+hibrida; el RAG seguro y su evaluacion siguen en construccion.
 
 El problema, el usuario y la metrica inicial estan documentados en
 [`docs/problem-brief.md`](docs/problem-brief.md).
@@ -122,6 +123,17 @@ solo al invocarlo, una clave de OpenAI mediante `OPENAI_API_KEY` o `OPENAI_API_K
 La llamada al proveedor desactiva almacenamiento, separa instrucciones de contenido no confiable y
 registra modelo, version de prompt, latencia y tokens sin copiar la pregunta a la traza. El contrato,
 fallos seguros y limites estan en [`docs/ai-contract.md`](docs/ai-contract.md).
+
+## Ingerir y recuperar conocimiento autorizado
+
+El segundo incremento añade `POST /v1/knowledge/documents` para operadores y
+`POST /v1/knowledge/retrieval` para usuarios autenticados. PostgreSQL aplica permisos por sujeto
+antes de devolver resultados y permite busqueda `lexical`, `semantic` o `hybrid`.
+
+Desarrollo y pruebas pueden usar embeddings deterministas para repetir resultados sin costo; ese
+adaptador no es IA. Produccion requiere OpenAI. El modelo de datos, seguridad y limites estan en el
+[`contrato de recuperacion`](docs/knowledge-retrieval-contract.md), y la validacion observada en la
+[`evidencia del Incremento 2`](docs/phase-4-increment-2-evidence.md).
 
 ## Ejecutar el stack Docker
 

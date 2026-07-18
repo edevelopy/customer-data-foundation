@@ -32,7 +32,12 @@ Despues se realizara una evaluacion final de la Fase 4 con evidencia desde un cl
 - Cada resultado expone version del prompt, modelo, tokens, latencia y costo estimado, sin exponer la
   pregunta en la traza.
 
-## Limite actual
+## Estado actual
 
-El Incremento 1 planifica la consulta; todavia no recupera documentos ni responde al usuario. Eso es
-intencional: permite estabilizar la frontera probabilistica antes de conectarla a datos empresariales.
+- Incremento 1: aprobado localmente; frontera LLM estructurada y observable.
+- Incremento 2: aprobado localmente; documentos versionados, pgvector, permisos y recuperacion
+  hibrida.
+- Incremento 3: en construccion; respuestas fundamentadas, citas y rechazo seguro.
+
+La ausencia de una credencial de OpenAI se registra como limite: los adaptadores reales existen,
+pero las pruebas locales deterministas no se presentan como llamadas ni calidad real del proveedor.

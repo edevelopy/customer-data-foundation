@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres:18.4-alpine
+    image: pgvector/pgvector:pg18-trixie@sha256:9d2e61c7352b9e9f4798df5fd9a498f043f4cda1cdacc707de3d198650f4321e
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?copy .env.example to .env}
@@ -216,7 +216,7 @@ services:
 
   database_test:
     profiles: ["test"]
-    image: postgres:18.4-alpine
+    image: pgvector/pgvector:pg18-trixie@sha256:9d2e61c7352b9e9f4798df5fd9a498f043f4cda1cdacc707de3d198650f4321e
     environment:
       POSTGRES_DB: fde_test
       POSTGRES_USER: fde_test

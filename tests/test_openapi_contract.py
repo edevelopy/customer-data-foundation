@@ -21,6 +21,8 @@ def test_versioned_openapi_matches_runtime_contract() -> None:
         "/v1/imports",
         "/v1/imports/{operation_id}",
         "/v1/integrations/{operation_id}",
+        "/v1/knowledge/documents",
+        "/v1/knowledge/retrieval",
     }
     assert exported["components"]["securitySchemes"]["BearerAuth"] == {
         "type": "http",
